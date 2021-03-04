@@ -76,3 +76,19 @@ class OutConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
+
+
+class Up1(nn.Module):
+    """Special version of Up class with only 1 input
+    """
+    def __init__(self, in_channels, out_channels, bilinear=True):
+        super().__init__()
+
+        self.up = nn.ConvTranspose2d(in_channels , in_channels // 2, kernel_size=2, stride=2)
+        self.conv = DoubleConv(in_channels, out_channels)
+
+    def forward(self, x):
+        x1 = self.up(x)
+        x2 = self.conv(x1)
+        return x2
+

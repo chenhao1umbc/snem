@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 plt.rcParams['figure.dpi'] = 100
 
+from unet.unet_model import UNetHalf as UNet
 import torch_optimizer as optim
 
 "make the result reproducible"
@@ -28,13 +29,24 @@ torch.backends.cudnn.benchmark = False
 pi = np.pi
 e = np.exp(1)
 
-class Opt():
-    def __init__(self, ifgendata=False) -> None:
-        self.ifgendata = ifgendata
-        self.n_epochs = 101
-        self.lr = 1e-3
-        self.train_model = False
+#%%
+def load_options(n_epochs=25, n_batch=64):
+    """[set all the parameters]
 
+    Args:
+        n_epochs (int, optional): [how many traning epoches]. Defaults to 25.
+        n_batch (int, optional): [batch size]. Defaults to 64.
+
+    Returns:
+        [dict]: [a dict contains all the parameters]
+    """
+    opts = {}
+    opts['n_epochs'] = n_epochs 
+    opts['lr'] = 0.001
+    opts['n_batch'] = n_batch
+    opts['n_iter'] = 10 # EM iterations
+    opts['gamma_dim'] = 512 # gamma dimesion
+    return opts
 
 def label_gen(n):
     """This function generates labels in the mixture
@@ -470,6 +482,7 @@ def train_NEM(V, X, model, opts):
                     eps=1e-8,
                     weight_decay=0)
     loss_train = []
+    loss_cv = []
 
     for epoch in range(opts['n_epochs']):    
         for i, (x, v) in enumerate(tr): # x has shape of [n_batch, n_f, n_t, n_c, 1]
@@ -532,7 +545,7 @@ def train_NEM(V, X, model, opts):
         if check_stop(loss_cv):
             break
 
-    return cjh_list, likelihood
+    return cjh, vj, Rj, model
 
 
 def check_stop(loss):
@@ -580,7 +593,7 @@ def test_NEM(V, X, model, opts):
     model.eval()
     with torch.no_grad():
         cv_loss = 0
-        for xval, yval, lval in va: 
+        for xval, yval, lval in X: 
             cv_cuda = xval.unsqueeze(1).cuda()
             cv_yh = model(cv_cuda).cpu().squeeze()
             cv_loss = cv_loss + Func.mse_loss(cv_yh, yval)
