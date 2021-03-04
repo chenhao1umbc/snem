@@ -39,7 +39,7 @@ class UNet(nn.Module):
         return logits
 
 
-class UNetHalf(UNet):
+class UNetHalf(nn.Module):
     #TODO
     def __init__(self, n_channels, n_classes, bilinear=False):
         """Only the up part of the unet

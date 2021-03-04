@@ -491,6 +491,12 @@ def train_NEM(V, X, model, opts):
             vj = v.clone().to(torch.complex64) # shape of [n_batch, n_s, n_f, n_t]
             gammaj = torch.ones(n_batch, n_s, opts['gamma_dim'])
             likelihood = torch.zeros(opts['n_iter']).to(torch.complex64)
+            optim_gamma = optim.RAdam(
+                    [gammaj], # must be iterable
+                    lr= opts['lr'],
+                    betas=(0.9, 0.999),
+                    eps=1e-8,
+                    weight_decay=0)
 
             for ii in range(opts['n_iter']):  # EM loop
                 # the E-step
@@ -514,6 +520,7 @@ def train_NEM(V, X, model, opts):
                 "Back propagate to update the input of neural network"
                 model.eval()
                 loss = criterion(model(gammaj), x, Rj)
+                optim_gamma.step()
 
             #%% the neural network step
             model.train()
@@ -599,3 +606,4 @@ def test_NEM(V, X, model, opts):
             cv_loss = cv_loss + Func.mse_loss(cv_yh, yval)
             torch.cuda.empty_cache()
         loss_cv.append(cv_loss/106)  # averaged over all the iterations
+# %%
