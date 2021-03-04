@@ -9,9 +9,6 @@ import scipy.io as sio
 from scipy.signal import stft 
 from scipy.signal import istft 
 import itertools
-import norbert
-
-import tensorflow as tf
 
 import torch
 from torch import nn
@@ -21,7 +18,6 @@ import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 plt.rcParams['figure.dpi'] = 100
 
-from unet.unet_model import UNet
 import torch_optimizer as optim
 
 "make the result reproducible"
