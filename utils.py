@@ -474,7 +474,6 @@ def train_NEM(V, X, model, opts):
     eps = 1e-20  # no smaller than 1e-22
     tr = wrap(X, V, opts)  # tr is a data loader
 
-    criterion = nn.MSELoss()
     optimizer = optim.RAdam(
                     model.parameters(),
                     lr= opts['lr'],
@@ -489,7 +488,7 @@ def train_NEM(V, X, model, opts):
             "Initialize spatial covariance matrix"
             Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed().to(torch.complex64)
             vj = v.clone().to(torch.complex64) # shape of [n_batch, n_s, n_f, n_t]
-            gammaj = torch.ones(n_batch, n_s, opts['gamma_dim'])
+            gammaj = torch.ones(n_batch, n_s, opts['gamma_dim']).requires_grad(True)
             likelihood = torch.zeros(opts['n_iter']).to(torch.complex64)
             optim_gamma = optim.RAdam(
                     [gammaj], # must be iterable
@@ -497,6 +496,8 @@ def train_NEM(V, X, model, opts):
                     betas=(0.9, 0.999),
                     eps=1e-8,
                     weight_decay=0)
+            for param in model.parameters():
+                param.requires_grad = False
 
             for ii in range(opts['n_iter']):  # EM loop
                 # the E-step
@@ -510,6 +511,9 @@ def train_NEM(V, X, model, opts):
                 cjh = Wj @ x  # shape of [n_batch, n_s, n_f, n_t, n_c, 1]
                 "get covariance"
                 Rcjh = cjh@cjh.permute(0,1,2,4,3).conj() + (I - Wj) @ Rcj
+                "calc. P(cj|x; theta_hat)" # pytorch 1.8 or later, no need the numpy function
+                R = np.linalg.inv(np.linalg.inv(Rcj) + np.linalg.inv(Rx[:,None,...]-Rcj))
+                p = torch.tensor( np.linalg.det(pi*R)**-1)# cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
                 likelihood[i] = calc_likelihood(torch.tensor(x), Rx)
@@ -518,16 +522,19 @@ def train_NEM(V, X, model, opts):
                 "cal spatial covariance matrix" #[...,None,None] is adding(unsqueeze) 2 dimesions
                 Rj = ((Rcjh/(vj+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None,...]
                 "Back propagate to update the input of neural network"
-                model.eval()
-                loss = criterion(model(gammaj), x, Rj)
+                loss = loss_func(p, x, model(gammaj), Rj) # model param is fixed
+                optim_gamma.zero_grad()                
+                loss.back()
                 optim_gamma.step()
 
             #%% the neural network step
+            gammaj.requires_grad(False)
+            for param in model.parameters():
+                param.requires_grad = True
             model.train()
-            vj = model(gammaj)
-            optimizer.zero_grad()  
-
-            loss = criterion(vj, x, Rj)              
+            vj = model(gammaj)           
+            loss = loss_func(vj, x, Rj)           
+            optimizer.zero_grad()   
             loss.backward()
             optimizer.step()
             loss_train.append(loss.data.item())
@@ -553,6 +560,10 @@ def train_NEM(V, X, model, opts):
             break
 
     return cjh, vj, Rj, model
+
+
+def loss_func(p, x, vj, Rj):
+    pass
 
 
 def check_stop(loss):
