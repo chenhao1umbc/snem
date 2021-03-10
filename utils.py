@@ -520,15 +520,15 @@ def train_NEM(V, X, model, opts):
                 "get covariance"# Rcjh shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
                 Rcjh = cjh@cjh.permute(0,1,2,4,3).conj() + (I - Wj) @ Rcj
                 "calc. P(cj|x; theta_hat)" # pytorch 1.8 or later, no need the numpy function
-                R = np.linalg.inv(np.linalg.inv(Rcj) + np.linalg.inv(Rx[:,None,...]-Rcj))
-                p = torch.tensor( np.linalg.det(pi*R)**-1)# cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
+                R = (Rcj.inverse() + (Rx[:,None,...]-Rcj).inverse()).inverse()
+                p = torch.tensor( torch.linalg.det(pi*R)**-1)# cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
                 likelihood[i] = calc_likelihood(torch.tensor(x), Rx)
 
                 # the M-step
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
-                Rj = ((Rcjh/(vj+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None,...]
+                Rj = ((Rcjh/(vj+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
                 "Back propagate to update the input of neural network"
                 vj = model(gammaj) #shape of [n_batch, n_s, n_f, n_t ]
                 loss, Rx, Rcj = loss_func(p, x, cjh, vj, Rj) # model param is fixed
@@ -591,12 +591,16 @@ def loss_func(p, x, cj,  vj, Rj):
     Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
     Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
 
-    cj_, Rcj_ = x - cj, Rx - Rcj
+    cj_, Rcj_ = x - cj, Rx[:,None] - Rcj
+    "calc log P(x|cj)"
+    e_part = -1*cj_.transpose(-1, -2).conj()@Rcj_.inverse()@cj_  # complex 64 but imag is 0
+    det_part = - (pi*Rcj_).det().real.log()  # shape of [n_batch, n_s, n_f, n_t]
+    "calc log P(cj)"
+    e_part_2 = -1*cj.transpose(-1, -2).conj()@Rcj.inverse()@cj  # complex 64 but imag is 0
+    det_part_2 = - (pi*Rcj).det().real.log()  # shape of [n_batch, n_s, n_f, n_t]
+    log_part = e_part.real*det_part + e_part_2.real*det_part_2
 
-    e_part = -1*cj_.transpose(-1, -2).conj()@Rcj_@cj_  # complex 64 but imag is 0
-    det_part = - Rcj_
-
-    loss = 1
+    loss = - (p*log_part).sum()
     return loss, Rx.requires_grad_(False), Rcj.requires_grad_(False)
 
 
