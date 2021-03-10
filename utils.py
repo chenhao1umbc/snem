@@ -44,7 +44,7 @@ def load_options(n_epochs=25, n_batch=64):
     opts['n_epochs'] = n_epochs 
     opts['lr'] = 0.001
     opts['n_batch'] = n_batch
-    opts['n_iter'] = 10 # EM iterations
+    opts['n_iter'] = 5 # EM iterations
     opts['gamma_dim'] = 512 # gamma dimesion
     return opts
 
@@ -487,7 +487,13 @@ def train_NEM(V, X, model, opts):
         for i, (x, v) in enumerate(tr): # x has shape of [n_batch, n_f, n_t, n_c, 1]
             "Initialize spatial covariance matrix"
             Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed().to(torch.complex64)
-            vj = v.clone().to(torch.complex64) # shape of [n_batch, n_s, n_f, n_t]
+            "vj is PSD, real tensor, for complex 64 for calc. purpose"
+            vj = v.clone().to(torch.complex64) #  shape of [n_batch, n_s, n_f, n_t]
+            Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
+            "Compute mixture covariance"
+            Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
+            Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
+
             gammaj = torch.ones(n_batch, n_s, opts['gamma_dim']).requires_grad(True)
             likelihood = torch.zeros(opts['n_iter']).to(torch.complex64)
             optim_gamma = optim.RAdam(
@@ -501,15 +507,17 @@ def train_NEM(V, X, model, opts):
 
             for ii in range(opts['n_iter']):  # EM loop
                 # the E-step
-                Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
-                "Compute mixture covariance"
-                Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
-                Rx = (Rx + Rx.transpose(-1, -2))/2  # make sure it is symetrix
+                "for computational efficiency, the following steps are merged in loss function"
+                # Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
+                # "Compute mixture covariance"
+                # Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
+                # Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
+
                 "Calc. Wiener Filter"
                 Wj = Rcj @ torch.tensor(np.linalg.inv(Rx)) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
                 "get STFT estimation, the conditional mean"
                 cjh = Wj @ x  # shape of [n_batch, n_s, n_f, n_t, n_c, 1]
-                "get covariance"
+                "get covariance"# Rcjh shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
                 Rcjh = cjh@cjh.permute(0,1,2,4,3).conj() + (I - Wj) @ Rcj
                 "calc. P(cj|x; theta_hat)" # pytorch 1.8 or later, no need the numpy function
                 R = np.linalg.inv(np.linalg.inv(Rcj) + np.linalg.inv(Rx[:,None,...]-Rcj))
@@ -519,13 +527,15 @@ def train_NEM(V, X, model, opts):
                 likelihood[i] = calc_likelihood(torch.tensor(x), Rx)
 
                 # the M-step
-                "cal spatial covariance matrix" #[...,None,None] is adding(unsqueeze) 2 dimesions
+                "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
                 Rj = ((Rcjh/(vj+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None,...]
                 "Back propagate to update the input of neural network"
-                loss = loss_func(p, x, model(gammaj), Rj) # model param is fixed
+                vj = model(gammaj) #shape of [n_batch, n_s, n_f, n_t ]
+                loss, Rx, Rcj = loss_func(p, x, cjh, vj, Rj) # model param is fixed
                 optim_gamma.zero_grad()                
                 loss.back()
                 optim_gamma.step()
+                vj.requires_grad = False  # avoid Rj, Rx... get grad calc
 
             #%% the neural network step
             gammaj.requires_grad(False)
@@ -533,7 +543,7 @@ def train_NEM(V, X, model, opts):
                 param.requires_grad = True
             model.train()
             vj = model(gammaj)           
-            loss = loss_func(vj, x, Rj)           
+            loss = loss_func(p, x, cjh, vj, Rj) # gamma is fixed          
             optimizer.zero_grad()   
             loss.backward()
             optimizer.step()
@@ -562,8 +572,32 @@ def train_NEM(V, X, model, opts):
     return cjh, vj, Rj, model
 
 
-def loss_func(p, x, vj, Rj):
-    pass
+def loss_func(p, x, cj,  vj, Rj):
+    """[summary]
+
+    Args:
+        p ([real tensor]): [probability of P(cj|x, theat_old), shape of [n_batch, n_s, n_f, n_t,]]
+        x ([complex tensor]): [mixture samples, shape of [n_batch, n_f, n_t, n_c, 1]]
+        cj ([complex tensor]): [each source, shape of [n_batch, n_s, n_f, n_t, n_c, 1]]
+        vj ([real tensor]): [required gradient, similar to PSD of the source, shape of [n_batch, n_s, n_f, n_t ]]
+        Rj ([complex tensor]): [hidden covariance, shape of [n_batch, n_s, 1, 1, n_c, n_c]]
+    Return:
+        loss = -1 * \sum_i,n,f \sum_j Q(theta, theta_hat)
+    """
+    "calc log P(cj, x ; theta) = log P(cj ; theta) + log P(x|cj ; theta)"
+
+    Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
+    "Compute mixture covariance"
+    Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
+    Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
+
+    cj_, Rcj_ = x - cj, Rx - Rcj
+
+    e_part = -1*cj_.transpose(-1, -2).conj()@Rcj_@cj_  # complex 64 but imag is 0
+    det_part = - Rcj_
+
+    loss = 1
+    return loss, Rx.requires_grad_(False), Rcj.requires_grad_(False)
 
 
 def check_stop(loss):
