@@ -514,14 +514,14 @@ def train_NEM(V, X, model, opts):
                 # Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
 
                 "Calc. Wiener Filter"
-                Wj = Rcj @ torch.tensor(np.linalg.inv(Rx)) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
+                Wj = Rcj @ torch.linalg.inv(Rx) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
                 "get STFT estimation, the conditional mean"
                 cjh = Wj @ x  # shape of [n_batch, n_s, n_f, n_t, n_c, 1]
                 "get covariance"# Rcjh shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
                 Rcjh = cjh@cjh.permute(0,1,2,4,3).conj() + (I - Wj) @ Rcj
-                "calc. P(cj|x; theta_hat)" # pytorch 1.8 or later, no need the numpy function
+                "calc. P(cj|x; theta_hat)" 
                 R = (Rcj.inverse() + (Rx[:,None,...]-Rcj).inverse()).inverse()
-                p = torch.tensor( torch.linalg.det(pi*R)**-1)# cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
+                p = torch.linalg.det(pi*R)**-1 # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
                 likelihood[i] = calc_likelihood(torch.tensor(x), Rx)
@@ -568,7 +568,6 @@ def train_NEM(V, X, model, opts):
         "if loss_cv consecutively going up for 5 epochs --> stop"
         if check_stop(loss_cv):
             break
-
     return cjh, vj, Rj, model
 
 
