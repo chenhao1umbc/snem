@@ -1,4 +1,5 @@
-"""This file is made to generate the mixture data from LM data set.
+"""
+This file is made to generate the mixture data from LM data set.
 The original data was at 40 MHz sampling rate, 1.8e9=25 seconds for each class
 we use the compressed data at
 /home/chenhao1/Matlab/LMdata/compressed/
@@ -19,26 +20,27 @@ ______________ after loading the [2000, 20100] for each class_______________
 each sample is normalized to 1
 after shuffled, 1600 samples as training, 400 samples for test
 labels are one hot encoding, 1 or 0, as dtype float64
+"""
 
+# All the files are saved in /home/chenhao1/Hpython/data/data_ss/stage_1
 
-it saves several files as 
+"""
+The 1 channel mixture data are savd as
 'pre' + 'dict_mix_' + 'n'
-e.g. 'train_200_' + 'dict_mix_' + '2'
-pre is for train or test, 'n' is how many sources in the mixture
+e.g. train_200_dict_mix_2.pt = 'train_200_' + 'dict_mix_' + '2' + '.pt'
+pre is for train or test, 200 means, heigh and width =200, 'n' is how many sources in the mixture
 in total, the training has 1600*6 + 1600*15 + 1600*20 + 1600*15+ 1600*6 +1600 samples
 saved as dictionary, with keys as 'data' and 'label'
 
 it also saved data for training u-net as
 'class_names'+ 'tr or va or te' +'.pt'
-e.g. 'ble_' + 'tr_200' 
+e.g. ble_tr_200.pt = 'ble_' + 'tr_200' + '.pt'
 class_names is the class name, tr is for training, va for validation, te for testing
 For each class, there are 800*(6+15+20+15+6+1) samples from the train_dict_mix_n as 
 training samples for u-net, which means it used the mixtures samples for supervised learning
 the mixture labels are not used for u-net.
 the va and te data with 800*(6+15+20+15+6+1) samples for each,vare also from the train_dict_mix_n.
 the save data format is torch.Dataloader, with batch_size = 30
-
-
 """
 
 #%%
@@ -114,3 +116,6 @@ for i in np.arange(0, 6):
     get_Unet_input(xtr, ltr, ytr, which_class=i, tr_va_te='_tr_200')
     get_Unet_input(xva, lva, yva, which_class=i, tr_va_te='_va_200')
     get_Unet_input(xte, lte, yte, which_class=i, tr_va_te='_te_200', shuffle=False)
+
+
+#%% Generate multi-channel data
