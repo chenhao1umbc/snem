@@ -60,7 +60,7 @@ def label_gen(n):
     label_n = np.zeros( (lb_idx.shape[0], 6) )
     for i in range(lb_idx.shape[0]):
         label_n[i, lb_idx[i]] = 1
-    return label_n
+    return torch.tensor(label_n).to(torch.float)
 
 
 def mix_data_torch(x, labels):
@@ -69,26 +69,27 @@ def mix_data_torch(x, labels):
         Parameters
         ----------
         x : [tensor of complex]
-            [data with shape of [n_classes, n_samples, time_len]]
+            [data with shape of [n_class, n_samples, time_length, n_c]]
         labels : [matrix of int]
-            [maxtrix of [n_samples, n_classes]]
+            [maxtrix of [n_comb, n_classes]]
 
         Returns
         -------
         [complex pytorch]
-            [mixture data with shape of [n_samples, time_len] ]
+            [mixture data with shape of [n_comb, n_samples, time_len, n_c] ]
     """
-    n = labels.shape[0]
-    output = np.zeros( (n, x.shape[1], x.shape[2]) ).astype('complex64')
+    n = labels.shape[0]  # how many combinations
+    n_class, n_samples, time_length, n_c = x.shape
+    output = torch.zeros( (n, n_samples, time_length, n_c), dtype=torch.cfloat)
     for i1 in range(n):
         s = 0
-        for i2 in range(6):
+        for i2 in range(6):  # loop through 6 classes
             if labels[i1, i2] == 1:
                 s = s + x[i2]
             else:
                 pass
         output[i1] = s
-    return torch.tensor(output), torch.tensor(labels).to(torch.float)
+    return output, labels.to(torch.float)
 
 
 def save_mix(x, lb1, lb2, lb3, lb4, lb5, lb6, pre='_'):
