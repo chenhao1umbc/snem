@@ -123,13 +123,9 @@ delta_omega = 2*pi*d*sin(theta)/lambda
 d is the antenna space length( distance from one to the next one), typically d=lambda/2
 theta is the angle of arrival, -pi/2 to pi/2
 lambda is the wave length lambda = c/f, c is light speed, f is frequency of the wave
-"""
-# All the files are saved in /home/chenhao1/Hpython/data/data_ss/
 
-"""asdf"""
-n_c = 6  #number of channels
-aoa = torch.tensor([60, 40, 20, -20, -40, -60])  # in degrees for each class
-del_omega = (1j* np.pi * (aoa/180*np.pi).sin()).exp()  # for each class
+# All the files are saved in /home/chenhao1/Hpython/data/data_ss/
+"""
 
 #%% data processing 
 "raw data processing"
@@ -153,23 +149,31 @@ for i in range(6): # split 1600 for tain_val, 400 for test
     test[i] = torch.tensor(data[i][-400:])
 
 # %%  extend one channel to multiple channel
-data = torch.cat((train_val, test), 1)  # [n_class=6, n_samples=2000, time_length]
-d_mul_c = torch.zeros(6, n_c, data.shape[1], data.shape[2]).to(torch.cfloat)
-for i in range(6):
-    d_mul_c[i] = data[i] # class i data, copy n_c times
+n_c = 6  #number of channels
+aoa = torch.tensor([60, 40, 20, -20, -40, -60])  # in degrees for each class
+del_omega = (1j* np.pi * (aoa/180*np.pi).sin()).exp()  # for each class
 
+data = torch.cat((train_val, test), 1)  # [n_class=6, n_samples=2000, time_length]
+"[n_class=6, n_c, n_samples=2000, time_length]"
+d_mul_c = torch.zeros(6, n_c, data.shape[1], data.shape[2]).to(torch.cfloat)
+for i in range(6):  # loop through class i
+    d_mul_c[i] = data[i] # class i data, copy n_c times
     if i < 3:
         "delay for each channel, first channel has delay 0, for positive angles"
         "Last channel has delay 0, for positive angles"
-        delays = torch.zeros(n_c, 1, dtype=torch.cfloat)
         for ii in range(n_c):  # get delays for each channel
-            delays[ii] = del_omega[i]**ii
+            delay = del_omega[i]**ii
+            "apply delay for each channel"
+            d_mul_c[i, ii] = d_mul_c[i, ii] * delay
     else:
-        delays = torch.zeros(n_c, 1, dtype=torch.cfloat)
         for ii in range(n_c):  # get delays for each channel
-            delays[ii] = del_omega[i]**(n_c - ii - 1)
+            delay = del_omega[i]**(n_c - ii - 1)
+            "apply delay for each channel"
+            d_mul_c[i, ii] = d_mul_c[i, ii] * delay
     
+        
     
+
 
 
 
