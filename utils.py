@@ -193,7 +193,7 @@ def st_ft(x):
     Parameters
     ----------
     x : [np.complex or torch.complex64]
-        [time series, shape of 20100]
+        [time series, shape of [...,20100]
 
     Returns
     -------
@@ -202,7 +202,7 @@ def st_ft(x):
     """
     _, _, zm = stft(x, fs=4e7, nperseg=200, boundary=None, return_onesided=False)
     output = np.roll(zm, 100, axis=-2).astype(np.complex)
-    return torch.tensor(output)
+    return torch.tensor(output).to(torch.cfloat)
 
 #%% EM related functions ####################################################################
 def calc_likelihood(x, Rx):
@@ -445,7 +445,7 @@ def load_data(data='train', n=2):
         [X, Y]: [data and labels]
     """
     route = '/home/chenhao1/Hpython/data/data_ss/'
-    d = torch.load(route+data+f'_c6_dict_mix_{n}.pt')
+    d = torch.load(route+'train_c6_4800_stft_101000')
     return d['data'], d['label']
 
 def init_neural_network(opts):

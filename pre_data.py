@@ -115,6 +115,20 @@ if save_1600:
     save_mix(test, label1, label2, label3, label4, label5, label6, pre='test_c6_')
 
 # %% for a certain type of mixture save more for training
+"""previously for the training data, there are 1600 non-mixture per class,
+for 2-mixture samples, we choose 2 classes out of all 6 class and add the 1600 samples accordingly
+we get 15*1600*time_len*channels data.
+
+still for the 2-mixture, if we want to get more than 1600 samples of mixture, all we need to do is
+fix class-1 samples, roll the clss-2 sample sequence, we will have another 1600 mixture
+This part will generate more data for certain labels e.g. 10100, the mixture of ble and fhss1
+the ground truth is till the 1600 non-mixture per class
+how to get the 4800 is recorded in 'ground_truth_roll'
+e.g. 'ground_truth_roll':((0,1), (0,2), 0,4),  labels = '101000'
+first 1600 is class[0].data + roll_index(class[2].data, 1)
+1600:3200 is class[0].data + roll_index(class[2].data, 2)
+3200:4800 is class[0].data + roll_index(class[2].data, 4)
+"""
 route = '/home/chenhao1/Hpython/data/data_ss/'
 d = torch.load(route+'train_c6_dict_mix_1.pt')
 x, y = d['data'], d['label']  #x shape of [n_class, n_samples=1600, time_length, n_c]
@@ -143,8 +157,20 @@ res = torch.tensor(res)
 #         else:
 #             print((ii+1)**i)
 "r = res[0] - x[0,0]-x[2, -1]; r = res[1600] - x[0,0]-x[2, -2]; r = res[3200] - x[0,0]-x[2, -4] # should be 0"
-class_names = ['ble', 'bt', 'fhss1', 'fhss2', 'wifi1', 'wifi2']
 labels = torch.tensor([int(i) for i in labels]).float()
-torch.save({'data':res, 'label':labels, 'class_name':class_names}, 'train_c6_4800_mix_101000.pt')
+torch.save({'data':res, 'label':labels, 'ground_truth_roll':((0,1), (0,2), 0,4)}, 'train_c6_4800_mix_101000.pt')
+
+# %%  get data of 
+"""This section generates the mixture sample after stft
+how get mixture data e.g. train_c6_4800_mix_101000.pt, please refer to the previous section
+for the meaning of 'ground_truth_roll', please refer to the previous section
+"""
+route = '/home/chenhao1/Hpython/data/data_ss/'
+d = torch.load(route+'train_c6_4800_mix_101000.pt')
+x, y, z = d['data'], d['label'], d['ground_truth_roll'] #x shape of [n_samples=1600, time_length, n_c]
+x = x.permute(0,2,1)
+x = st_ft(x)
+x = x.permute(0,2,3,1) #x shape of [n_samples=1600,n_c, F, T]
+torch.save({'data':res, 'label':y, 'ground_truth_roll':z}, 'train_c6_4800_stft_101000.pt')
 
 # %%
