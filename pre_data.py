@@ -171,6 +171,6 @@ x, y, z = d['data'], d['label'], d['ground_truth_roll'] #x shape of [n_samples=1
 x = x.permute(0,2,1)
 x = st_ft(x)
 x = x.permute(0,2,3,1) #x shape of [n_samples=1600,n_c, F, T]
-torch.save({'data':res, 'label':y, 'ground_truth_roll':z}, 'train_c6_4800_stft_101000.pt')
+torch.save({'data':x, 'label':y, 'ground_truth_roll':z}, 'train_c6_4800_stft_101000.pt')
 
 # %%

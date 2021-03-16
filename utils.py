@@ -445,8 +445,18 @@ def load_data(data='train', n=2):
         [X, Y]: [data and labels]
     """
     route = '/home/chenhao1/Hpython/data/data_ss/'
-    d = torch.load(route+'train_c6_4800_stft_101000')
-    return d['data'], d['label']
+    d = torch.load(route+'train_c6_4800_stft_101000.pt')
+    x, y = d['data'], d['label']  # x shape of [n_sample=4800, F=200, T=200, n_c=6]
+    x = x[torch.randperm(x.shape[0])]  #shuffle data
+    xtr = x[:4000]
+    xval = x[4000:]
+    vtr = xtr.abs().sum(-1)
+    vval = xval.abs().sum(-1)
+    if data =='train':
+        return xtr, vtr
+    else:
+        return xval, vval
+
 
 def init_neural_network(opts):
     model = UNet(n_channels=1, n_classes=1).cuda()
