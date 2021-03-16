@@ -139,9 +139,9 @@ def get_mixdata_label(mix=1, pre='train_'):
         -------
         [data, label]
     """
-    dict = torch.load('../data/data_ss/'+pre+'dict_mix_'+str(mix)+'.pt')
-    label = get_label(dict['label'], dict['data'].shape[:2])
-    return dict['data'], label
+    dicts = torch.load('../data/data_ss/'+pre+'dict_mix_'+str(mix)+'.pt')
+    label = get_label(dicts['label'], dicts['data'].shape[:2])
+    return dicts['data'], label
 
 
 def get_Unet_input(x, l, y, which_class=0, tr_va_te='_tr', n_batch=30, shuffle=True):
