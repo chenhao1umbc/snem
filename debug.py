@@ -100,4 +100,12 @@ _, _, A = stft(a, fs=4e7, nperseg=200, boundary=None)
 _, aa = istft(A, fs=4e7, nperseg=200, input_onesided=False, boundary=None )
 plt.plot(aa.imag[:500]+1)
 plt.plot(a.imag[:500])
+
+
+# %%
+x, y = load_data(data='train')
+x = x[:,:100].permute(0, 1, 3, 2)
+sx = st_ft(x)
+
+
 # %%

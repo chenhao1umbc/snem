@@ -32,6 +32,11 @@ pre is for train or test, c6 means 6channels with heigh and width =200,
 in total, the training has 1600*6 + 1600*15 + 1600*20 + 1600*15+ 1600*6 +1600 samples
 saved as dictionary, with keys as 'data' and 'label'
 
+e.g. train_c6_4800_mix_101000.pt = 'train_c6_' + '4800' +'_mix_' + '101000' + '.pt'
+pre is for train or test, c6 means 6channels with heigh and width =200, 
+'4800' is how many samples of the mixture data. Here 4800 in total
+'101000', is the class labels, meaning class 1 and 3 are the mixture sources
+saved as dictionary, with keys as 'data' and 'label'
 """
 #%%
 from utils import *
@@ -101,11 +106,35 @@ label4, label5 = label_gen(4), label_gen(5)
 label6 = torch.ones((1,6))
 
 #%% save mixture data
-train_val = d_mul_c[:,:1600]
-test = d_mul_c[:,1600:]
-save_mix(train_val, label1, label2, label3, label4, label5, label6, pre='train_c6_')
-save_mix(test, label1, label2, label3, label4, label5, label6, pre='test_c6_')
+train_val = d_mul_c[:,:1600]  # [n_class, n_samples=1600, time_length, n_c]
+test = d_mul_c[:,1600:] # [n_class, n_samples=400, time_length, n_c]
+save_1600 = True
+if save_1600:
+    "save data as train_c6_dict_mix_2.pt"
+    save_mix(train_val, label1, label2, label3, label4, label5, label6, pre='train_c6_')
+    save_mix(test, label1, label2, label3, label4, label5, label6, pre='test_c6_')
+
+# %% for a certain type of mixture save more for training
+route = '/home/chenhao1/Hpython/data/data_ss/'
+d = torch.load(route+'train_c6_dict_mix_1.pt')
+x, y = d['data'], d['label']  #x shape of [n_class, n_samples=1600, time_length, n_c]
+
+labels = '101000'
+"save data as train_c6_4800_mix_101000.pt"
+which_source = [i for i,v in enumerate(labels) if v == '1' ]
+
+n_rolls = 3  # n_samples = n_roll*1600
+res = np.zeros((1600*n_rolls, x.shape[-2], x.shape[-1])).astype('complex64')
+for i in range(n_rolls):
+    temp_sum = 0
+    for ii, s_ind in enumerate(which_source):  # s_ind is source index ==1
+        if ii == 0: # not roll
+            temp_sum= temp_sum + np.roll(x[s_ind].numpy(), 0, axis=0).astype(np.complex)
+        else:
+            temp_sum= temp_sum + np.roll(x[s_ind].numpy(), i+ii, axis=0).astype(np.complex)
+    res[1600*i:1600*(i+1)] = temp_sum
+res = torch.tensor(res)
+
+
 
 # %%
-
-

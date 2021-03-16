@@ -200,8 +200,8 @@ def st_ft(x):
     [torch.complex]
         [STFT with shift, shape of 200*200]
     """
-    _, _, zm = stft(x, fs=4e7, nperseg=200, boundary=None)
-    output = np.roll(zm, 100, axis=0).astype(np.complex)
+    _, _, zm = stft(x, fs=4e7, nperseg=200, boundary=None, return_onesided=False)
+    output = np.roll(zm, 100, axis=-2).astype(np.complex)
     return torch.tensor(output)
 
 #%% EM related functions ####################################################################
