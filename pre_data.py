@@ -108,7 +108,7 @@ label6 = torch.ones((1,6))
 #%% save mixture data
 train_val = d_mul_c[:,:1600]  # [n_class, n_samples=1600, time_length, n_c]
 test = d_mul_c[:,1600:] # [n_class, n_samples=400, time_length, n_c]
-save_1600 = True
+save_1600 = False
 if save_1600:
     "save data as train_c6_dict_mix_2.pt"
     save_mix(train_val, label1, label2, label3, label4, label5, label6, pre='train_c6_')
@@ -130,11 +130,21 @@ for i in range(n_rolls):
     for ii, s_ind in enumerate(which_source):  # s_ind is source index ==1
         if ii == 0: # not roll
             temp_sum= temp_sum + np.roll(x[s_ind].numpy(), 0, axis=0).astype(np.complex)
-        else:
-            temp_sum= temp_sum + np.roll(x[s_ind].numpy(), i+ii, axis=0).astype(np.complex)
+        else:  # rolling over samples
+            temp_sum= temp_sum + np.roll(x[s_ind].numpy(),(ii+1)**i, axis=0).astype(np.complex)
     res[1600*i:1600*(i+1)] = temp_sum
 res = torch.tensor(res)
 
-
+# for i in range(3):
+#     temp_sum = 0
+#     for ii, s_ind in enumerate([0, 1, 3]):  # s_ind is source index ==1
+#         if ii == 0: # not roll
+#             print(0)
+#         else:
+#             print((ii+1)**i)
+"r = res[0] - x[0,0]-x[2, -1]; r = res[1600] - x[0,0]-x[2, -2]; r = res[3200] - x[0,0]-x[2, -4] # should be 0"
+class_names = ['ble', 'bt', 'fhss1', 'fhss2', 'wifi1', 'wifi2']
+labels = torch.tensor([int(i) for i in labels]).float()
+torch.save({'data':res, 'label':labels, 'class_name':class_names}, 'train_c6_4800_mix_101000.pt')
 
 # %%
