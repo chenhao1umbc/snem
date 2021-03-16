@@ -434,13 +434,19 @@ def plot_log_stft(stft_mix, title="STFT"):
 
 
 #%% this is a new section ##############################################
-def load_data(data='train'):
-    # TODO
-    if data == 'train':
-        return 0
-    else:
-        return 1
+def load_data(data='train', n=2):
+    """load data, for train_val data and test data
 
+    Args:
+        data (str, optional): [data type]. Defaults to 'train'.
+        n (int, optional): [how many mixture sources]. Defaults to 2.
+
+    Returns:
+        [X, Y]: [data and labels]
+    """
+    route = '/home/chenhao1/Hpython/data/data_ss/'
+    d = torch.load(route+data+f'_c6_dict_mix_{n}.pt')
+    return d['data'], d['label']
 
 def init_neural_network(opts):
     model = UNet(n_channels=1, n_classes=1).cuda()
