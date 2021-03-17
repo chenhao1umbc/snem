@@ -539,9 +539,10 @@ def train_NEM(X, V, model, opts):
                 "get STFT estimation, the conditional mean"
                 cjh = Wj @ x[:,None]  # shape of [n_batch, n_s, n_f, n_t, n_c, 1]
                 "get covariance"# Rcjh shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
-                Rcjh = cjh@cjh.permute(0,1,2,3,5,4).conj() + (I - Wj) @ Rcj
+                R = (I - Wj)@Rcj
+                Rcjh = cjh@cjh.permute(0,1,2,3,5,4).conj() + R
                 "calc. P(cj|x; theta_hat)" 
-                R = (Rcj.inverse() + (Rx[:,None]-Rcj).inverse()).inverse()
+                # R = (Rcj**-1 + (Rx-Rcj)**-1)**-1 = (I - Wj)Rcj
                 p = torch.linalg.det(np.pi*R)**-1 # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
