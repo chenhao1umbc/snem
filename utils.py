@@ -26,9 +26,6 @@ torch.manual_seed(0)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-pi = np.pi
-e = np.exp(1)
-
 #%%
 def load_options(n_epochs=25, n_batch=64):
     """[set all the parameters]
@@ -211,28 +208,28 @@ def calc_likelihood(x, Rx):
     Parameters
     ----------
     x : [torch.complex]
-        [shape of [n_f, n_t, n_c] or [n_f, n_t]]
+        [shape of [n_f, n_t, n_c, 1] or [n_f, n_t]]
     Rx : [torch.complex]
         [the covariance matrix, shape of [n_f, n_t, n_c, n_c] or [n_f, n_t]]
     """
     if x.dim() == 2:  # only 1 channel
-        p1 = (pi*Rx)**-1
+        p1 = (np.pi*Rx)**-1
         Rx_1 = 1/Rx
         p2 = e**(-1*x.conj() * Rx_1 * x)
         P = p1.log() + p2.log()
     else:
         "calculated the log likelihood"
-        p1 = torch.tensor( np.linalg.det(pi*Rx)**-1)
+        p1 = torch.tensor( np.linalg.det(np.pi*Rx)**-1)
         Rx_1 = torch.tensor(np.linalg.inv(Rx))
-        p2 = e**(-x.unsqueeze(-2).conj() @ Rx_1 @x.unsqueeze(-1))
-        P = p1.log() + p2.log().squeeze()  # shape of [n_f, n_t]
+        p2 = -x.transpose(-1, -2).conj() @ Rx_1 @x
+        P = p1.log() + p2.squeeze()  # shape of [n_f, n_t]
 
         "check the gradient value of the likelihood, not log likelihood"
         # Rx = tf.convert_to_tensor(Rx.numpy())
         # x = tf.convert_to_tensor(x.numpy())
         # with tf.GradientTape() as t:
         #     t.watch(Rx)
-        #     p1 = tf.linalg.det(pi*Rx)**-1
+        #     p1 = tf.linalg.det(np.pi*Rx)**-1
         #     Rx_1 = tf.linalg.inv(Rx)
         #     p2 = e**(-tf.matmul(
         #             tf.matmul(tf.math.conj(tf.expand_dims(x, -2)), Rx_1 ),\
@@ -538,14 +535,14 @@ def train_NEM(X, V, model, opts):
                 # Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
 
                 "Calc. Wiener Filter"
-                Wj = Rcj @ torch.linalg.inv(Rx) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
+                Wj = Rcj @ torch.linalg.inv(Rx)[:,None] # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
                 "get STFT estimation, the conditional mean"
-                cjh = Wj @ x  # shape of [n_batch, n_s, n_f, n_t, n_c, 1]
+                cjh = Wj @ x[:,None]  # shape of [n_batch, n_s, n_f, n_t, n_c, 1]
                 "get covariance"# Rcjh shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
-                Rcjh = cjh@cjh.permute(0,1,2,4,3).conj() + (I - Wj) @ Rcj
+                Rcjh = cjh@cjh.permute(0,1,2,3,5,4).conj() + (I - Wj) @ Rcj
                 "calc. P(cj|x; theta_hat)" 
-                R = (Rcj.inverse() + (Rx[:,None,...]-Rcj).inverse()).inverse()
-                p = torch.linalg.det(pi*R)**-1 # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
+                R = (Rcj.inverse() + (Rx[:,None]-Rcj).inverse()).inverse()
+                p = torch.linalg.det(np.pi*R)**-1 # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
                 likelihood[i] = calc_likelihood(torch.tensor(x), Rx)
@@ -599,7 +596,7 @@ def loss_func(p, x, cj,  vj, Rj):
     """[summary]
 
     Args:
-        p ([real tensor]): [probability of P(cj|x, theat_old), shape of [n_batch, n_s, n_f, n_t,]]
+        p ([real tensor]): [probability of P(cj|x; theta_old), shape of [n_batch, n_s, n_f, n_t,]]
         x ([complex tensor]): [mixture samples, shape of [n_batch, n_f, n_t, n_c, 1]]
         cj ([complex tensor]): [each source, shape of [n_batch, n_s, n_f, n_t, n_c, 1]]
         vj ([real tensor]): [required gradient, similar to PSD of the source, shape of [n_batch, n_s, n_f, n_t ]]
@@ -617,10 +614,10 @@ def loss_func(p, x, cj,  vj, Rj):
     cj_, Rcj_ = x - cj, Rx[:,None] - Rcj
     "calc log P(x|cj)"
     e_part = -1*cj_.transpose(-1, -2).conj()@Rcj_.inverse()@cj_  # complex 64 but imag is 0
-    det_part = - (pi*Rcj_).det().real.log()  # shape of [n_batch, n_s, n_f, n_t]
+    det_part = - (np.pi*Rcj_).det().real.log()  # shape of [n_batch, n_s, n_f, n_t]
     "calc log P(cj)"
     e_part_2 = -1*cj.transpose(-1, -2).conj()@Rcj.inverse()@cj  # complex 64 but imag is 0
-    det_part_2 = - (pi*Rcj).det().real.log()  # shape of [n_batch, n_s, n_f, n_t]
+    det_part_2 = - (np.pi*Rcj).det().real.log()  # shape of [n_batch, n_s, n_f, n_t]
     log_part = e_part.real*det_part + e_part_2.real*det_part_2
 
     loss = - (p*log_part).sum()
