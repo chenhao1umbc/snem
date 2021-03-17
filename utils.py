@@ -539,11 +539,12 @@ def train_NEM(X, V, model, opts):
                 "get STFT estimation, the conditional mean"
                 cjh = Wj @ x[:,None]  # shape of [n_batch, n_s, n_f, n_t, n_c, 1]
                 "get covariance"# Rcjh shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
-                R = (I - Wj)@Rcj
-                Rcjh = cjh@cjh.permute(0,1,2,3,5,4).conj() + R
+                Rh = (I - Wj)@Rcj
+                Rcjh = cjh@cjh.permute(0,1,2,3,5,4).conj() + Rh
+                Rcjh = (Rcjh + Rcjh.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
                 "calc. P(cj|x; theta_hat)" 
                 # R = (Rcj**-1 + (Rx-Rcj)**-1)**-1 = (I - Wj)Rcj
-                p = torch.linalg.det(np.pi*R)**-1 # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
+                logp = -torch.linalg.det(np.pi*Rh).log() # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
                 likelihood[i] = calc_likelihood(torch.tensor(x), Rx)
@@ -552,8 +553,8 @@ def train_NEM(X, V, model, opts):
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
                 Rj = ((Rcjh/(vj+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
                 "Back propagate to update the input of neural network"
-                vj = model(gammaj) #shape of [n_batch, n_s, n_f, n_t ]
-                loss, Rx, Rcj = loss_func(p, x, cjh, vj, Rj) # model param is fixed
+                # vj = model(gammaj) #shape of [n_batch, n_s, n_f, n_t ]
+                loss, Rx, Rcj = loss_func(logp, x, cjh, vj, Rj) # model param is fixed
                 optim_gamma.zero_grad()                
                 loss.back()
                 optim_gamma.step()
@@ -565,7 +566,7 @@ def train_NEM(X, V, model, opts):
                 param.requires_grad = True
             model.train()
             vj = model(gammaj)           
-            loss = loss_func(p, x, cjh, vj, Rj) # gamma is fixed          
+            loss = loss_func(logp, x, cjh, vj, Rj) # gamma is fixed          
             optimizer.zero_grad()   
             loss.backward()
             optimizer.step()
@@ -593,11 +594,11 @@ def train_NEM(X, V, model, opts):
     return cjh, vj, Rj, model
 
 
-def loss_func(p, x, cj,  vj, Rj):
+def loss_func(logp, x, cj,  vj, Rj):
     """[summary]
 
     Args:
-        p ([real tensor]): [probability of P(cj|x; theta_old), shape of [n_batch, n_s, n_f, n_t,]]
+        logp ([real tensor]): [log likelyhood of P(cj|x; theta_old), shape of [n_batch, n_s, n_f, n_t,]]
         x ([complex tensor]): [mixture samples, shape of [n_batch, n_f, n_t, n_c, 1]]
         cj ([complex tensor]): [each source, shape of [n_batch, n_s, n_f, n_t, n_c, 1]]
         vj ([real tensor]): [required gradient, similar to PSD of the source, shape of [n_batch, n_s, n_f, n_t ]]
@@ -608,9 +609,10 @@ def loss_func(p, x, cj,  vj, Rj):
     "calc log P(cj, x ; theta) = log P(cj ; theta) + log P(x|cj ; theta)"
 
     Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
+    Rcj = (Rcj + Rcj.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
     "Compute mixture covariance"
     Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
-    Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
+    Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
 
     cj_, Rcj_ = x[:,None] - cj, Rx[:,None] - Rcj
     "calc log P(x|cj)"
@@ -619,8 +621,10 @@ def loss_func(p, x, cj,  vj, Rj):
     "calc log P(cj)"
     e_part_2 = -1*cj.transpose(-1, -2).conj()@Rcj.inverse()@cj  # complex 64 but imag is 0
     det_part_2 = - (np.pi*Rcj).det().real.log()  # shape of [n_batch, n_s, n_f, n_t]
-    log_part = e_part.real*det_part + e_part_2.real*det_part_2
+    log_part = e_part.real.squeeze()*det_part + e_part_2.real.squeeze()*det_part_2
 
+    p = logp.exp().real #using logp, instead of p, is because p could be very large number showing inf
+    p[p==float('inf')] = 1e38  # roughly the max of float32
     loss = - (p*log_part).sum()
     return loss, Rx.requires_grad_(False), Rcj.requires_grad_(False)
 
