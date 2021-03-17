@@ -39,14 +39,38 @@ class UNet(nn.Module):
         return logits
 
 
+
+
+
+
+class Up_(nn.Module):
+    """Upscaling then double conv"""
+
+    def __init__(self, in_channels, out_channels, bilinear=True):
+        super().__init__()
+
+        # if bilinear, use the normal convolutions to reduce the number of channels
+        if bilinear:
+            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+            self.conv = DoubleConv(in_channels, out_channels // 2, in_channels // 2)
+        else:
+            self.up = nn.ConvTranspose2d(in_channels , in_channels // 2, kernel_size=2, stride=2)
+            self.conv = DoubleConv(in_channels, out_channels)
+
+
+    def forward(self, x):
+        x = self.up(x)
+        return self.conv(x)
+
+
+
 class UNetHalf(nn.Module):
-    #TODO
     def __init__(self, n_channels, n_classes, bilinear=False):
         """Only the up part of the unet
 
         Args:
-            n_channels ([type]): [how many channels]
-            n_classes ([type]): [how many classes]
+            n_channels ([type]): [how many input channels=n_sources]
+            n_classes ([type]): [how many output classes=n_sources]
             bilinear (bool, optional): [use interpolation or deconv]. Defaults to False(use deconv).
         """
         super(UNetHalf, self).__init__()
@@ -54,14 +78,14 @@ class UNetHalf(nn.Module):
         self.n_classes = n_classes
         self.bilinear = bilinear
 
-        self.inc = DoubleConv(n_channels, 64)
-        self.up1 = Up(1024, 512, bilinear)
-        self.up2 = Up(512, 256, bilinear)
-        self.up3 = Up(256, 128, bilinear)
-        self.up4 = Up(128, 64, bilinear)
+        self.inc = DoubleConv(n_channels, 1024)
+        self.up1 = Up_(1024, 512, bilinear)
+        self.up2 = Up_(512, 256, bilinear)
+        self.up3 = Up_(256, 128, bilinear)
+        self.up4 = Up_(128, 64, bilinear)
         self.outc = OutConv(64, n_classes)
-        self.classify = nn.Linear(4096, 1)
-        self.sigmoid = nn.Sigmoid()
+        # self.classify = nn.Linear(4096, 1)
+        # self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         x = self.inc(x)
@@ -69,8 +93,8 @@ class UNetHalf(nn.Module):
         x = self.up2(x)
         x = self.up3(x)
         x = self.up4(x)
-        logits = self.outc(x)
-        return logits
+        # logits = self.outc(x)
+        return x
 
 
 

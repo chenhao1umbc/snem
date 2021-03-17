@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 plt.rcParams['figure.dpi'] = 100
 
-from unet.unet_model import UNetHalf as UNet
+from unet.unet_model import UNetHalf
 import torch_optimizer as optim
 
 "make the result reproducible"
@@ -27,10 +27,11 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 #%%
-def load_options(n_epochs=25, n_batch=64):
+def load_options(n_s=2, n_epochs=25, n_batch=64):
     """[set all the parameters]
 
     Args:
+        n_s (int, optional): [how many soureces in the mixture]. Defaults to 2.
         n_epochs (int, optional): [how many traning epoches]. Defaults to 25.
         n_batch (int, optional): [batch size]. Defaults to 64.
 
@@ -39,10 +40,11 @@ def load_options(n_epochs=25, n_batch=64):
     """
     opts = {}
     opts['n_epochs'] = n_epochs 
-    opts['lr'] = 0.001
+    opts['lr'] = 0.01
     opts['n_batch'] = n_batch
     opts['n_iter'] = 5 # EM iterations
-    opts['gamma_dim'] = 512 # gamma dimesion
+    opts['d_gamma'] = 32 # gamma dimesion 32*32
+    opts['n_s'] = n_s  # number of sources
     return opts
 
 def label_gen(n):
@@ -441,12 +443,14 @@ def load_data(data='train', n=2):
     Returns:
         [X, Y]: [data and labels]
     """
-    route = '/home/chenhao1/Hpython/data/data_ss/'
-    d = torch.load(route+'train_c6_4800_stft_101000.pt')
-    x, y = d['data'], d['label']  # x shape of [n_sample=4800, F=200, T=200, n_c=6]
+    # route = '/home/chenhao1/Hpython/data/data_ss/'
+    # d = torch.load(route+'train_c6_4800_stft_101000.pt')
+    # x, y = d['data'], d['label']  # x shape of [n_sample=4800, F=200, T=200, n_c=6]
+    x = torch.rand(400, 200, 200, 6, dtype=torch.cfloat)
+    y = torch.tensor([1, 0, 1, 0,0,0])
     x = x[torch.randperm(x.shape[0])]  #shuffle data
-    xtr = x[:4000]
-    xval = x[4000:]
+    xtr = x[:200]
+    xval = x[200:]
 
     vtr0 = xtr.abs().sum(-1)/xtr.shape[-1]
     vtr = vtr0.clone()[:,None]
@@ -463,7 +467,8 @@ def load_data(data='train', n=2):
 
 
 def init_neural_network(opts):
-    model = UNet(n_channels=1, n_classes=1).cuda()
+    model = UNetHalf(n_channels=opts['n_s'], n_classes=opts['n_s'])
+    if torch.cuda.is_available(): model = model.cuda()
     return model
 
 
@@ -515,7 +520,12 @@ def train_NEM(X, V, model, opts):
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
             Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
 
-            gammaj = torch.ones(n_batch, n_s, opts['gamma_dim']).requires_grad_()
+            if torch.cuda.is_available(): 
+                gammaj = torch.ones(n_batch, n_s, opts['d_gamma'],\
+                     opts['d_gamma']).cuda().requires_grad_()
+            else:
+                gammaj = torch.ones(n_batch, n_s, opts['d_gamma'],\
+                     opts['d_gamma']).requires_grad_()
             likelihood = torch.zeros(opts['n_iter']).to(torch.cfloat)
             optim_gamma = optim.RAdam(
                     [gammaj], # must be iterable
@@ -542,26 +552,26 @@ def train_NEM(X, V, model, opts):
                 Rh = (I - Wj)@Rcj
                 Rcjh = cjh@cjh.permute(0,1,2,3,5,4).conj() + Rh
                 Rcjh = (Rcjh + Rcjh.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
-                "calc. P(cj|x; theta_hat)" 
+                "calc. log P(cj|x; theta_hat), using log to avoid inf problem" 
                 # R = (Rcj**-1 + (Rx-Rcj)**-1)**-1 = (I - Wj)Rcj, The det of a Hermitian matrix is real
                 logp = -torch.linalg.det(np.pi*Rh).real.log() # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
-                likelihood[i] = calc_likelihood(torch.tensor(x), Rx)
+                likelihood[i] = calc_likelihood(x, Rx)
 
                 # the M-step
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
                 Rj = ((Rcjh/(vj+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
                 "Back propagate to update the input of neural network"
-                # vj = model(gammaj) #shape of [n_batch, n_s, n_f, n_t ]
+                vj = model(gammaj) #shape of [n_batch, n_s, n_f, n_t ]
                 loss, Rx, Rcj = loss_func(logp, x, cjh, vj, Rj) # model param is fixed
                 optim_gamma.zero_grad()                
                 loss.back()
                 optim_gamma.step()
-                vj.requires_grad = False  # avoid Rj, Rx... get grad calc
+                torch.cuda.empty_cache()        
 
             #%% the neural network step
-            gammaj.requires_grad(False)
+            gammaj.requires_grad_(False)
             for param in model.parameters():
                 param.requires_grad = True
             model.train()
@@ -570,6 +580,7 @@ def train_NEM(X, V, model, opts):
             optimizer.zero_grad()   
             loss.backward()
             optimizer.step()
+
             loss_train.append(loss.data.item())
             torch.cuda.empty_cache()
             if i%50 == 0: print(f'Current iter is {i} in epoch {epoch}')
@@ -594,7 +605,7 @@ def train_NEM(X, V, model, opts):
     return cjh, vj, Rj, model
 
 
-def loss_func(logp, x, cj,  vj, Rj):
+def loss_func(logp, x, cj, vj, Rj):
     """[summary]
 
     Args:
@@ -607,6 +618,8 @@ def loss_func(logp, x, cj,  vj, Rj):
         loss = -1 * \sum_i,n,f \sum_j Q(theta, theta_hat)
     """
     "calc log P(cj, x ; theta) = log P(cj ; theta) + log P(x|cj ; theta)"
+    if torch.cuda.is_available():
+        logp, x, cj,  vj, Rj = logp.cuda(), x.cuda(), cj.cuda(), vj.cuda(), Rj.cuda()
 
     Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
     Rcj = (Rcj + Rcj.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
@@ -626,7 +639,7 @@ def loss_func(logp, x, cj,  vj, Rj):
     p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
     p[p==float('inf')] = 1e38  # roughly the max of float32
     loss = - (p*log_part).sum()
-    return loss, Rx.requires_grad_(False), Rcj.requires_grad_(False)
+    return loss, Rx.requires_grad_(False).cpu(), Rcj.requires_grad_(False).cpu()
 
 
 def check_stop(loss):
