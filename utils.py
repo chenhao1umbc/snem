@@ -543,8 +543,8 @@ def train_NEM(X, V, model, opts):
                 Rcjh = cjh@cjh.permute(0,1,2,3,5,4).conj() + Rh
                 Rcjh = (Rcjh + Rcjh.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
                 "calc. P(cj|x; theta_hat)" 
-                # R = (Rcj**-1 + (Rx-Rcj)**-1)**-1 = (I - Wj)Rcj
-                logp = -torch.linalg.det(np.pi*Rh).log() # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
+                # R = (Rcj**-1 + (Rx-Rcj)**-1)**-1 = (I - Wj)Rcj, The det of a Hermitian matrix is real
+                logp = -torch.linalg.det(np.pi*Rh).real.log() # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
                 likelihood[i] = calc_likelihood(torch.tensor(x), Rx)
@@ -623,7 +623,7 @@ def loss_func(logp, x, cj,  vj, Rj):
     det_part_2 = - (np.pi*Rcj).det().real.log()  # shape of [n_batch, n_s, n_f, n_t]
     log_part = e_part.real.squeeze()*det_part + e_part_2.real.squeeze()*det_part_2
 
-    p = logp.exp().real #using logp, instead of p, is because p could be very large number showing inf
+    p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
     p[p==float('inf')] = 1e38  # roughly the max of float32
     loss = - (p*log_part).sum()
     return loss, Rx.requires_grad_(False), Rcj.requires_grad_(False)
