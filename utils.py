@@ -450,8 +450,15 @@ def load_data(data='train', n=2):
     x = x[torch.randperm(x.shape[0])]  #shuffle data
     xtr = x[:4000]
     xval = x[4000:]
-    vtr = xtr.abs().sum(-1)
-    vval = xval.abs().sum(-1)
+
+    vtr0 = xtr.abs().sum(-1)/xtr.shape[-1]
+    vtr = vtr0.clone()[:,None]
+    vval0 = xval.abs().sum(-1)/xtr.shape[-1]
+    vval = vval0.clone()[:,None]
+    for i in range(y.sum().int()):
+        vtr = torch.cat((vtr, vtr0[:,None]), 1)
+        vval = torch.cat((vval, vval0[:,None]), 1)
+   
     if data =='train':
         return xtr, vtr
     else:
