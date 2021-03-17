@@ -455,7 +455,7 @@ def load_data(data='train', n=2):
     vtr = vtr0.clone()[:,None]
     vval0 = xval.abs().sum(-1)/xtr.shape[-1]
     vval = vval0.clone()[:,None]
-    for i in range(y.sum().int()):
+    for i in range(y.sum().int()-1):
         vtr = torch.cat((vtr, vtr0[:,None]), 1)
         vval = torch.cat((vval, vval0[:,None]), 1)
    
@@ -470,7 +470,7 @@ def init_neural_network(opts):
     return model
 
 
-def train_NEM(V, X, model, opts):
+def train_NEM(X, V, model, opts):
     """This function is the main body of the training algorithm of NeuralEM for Source Separation
 
     Args:
@@ -492,7 +492,7 @@ def train_NEM(V, X, model, opts):
         model is updated neural network
 
     """
-    n_batch, n_s = V.shape[1], opts['n_batch']
+    n_s, n_batch  = V.shape[1], opts['n_batch']
     n_i, n_f, n_t, n_c =  X.shape 
     I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed().to(torch.complex64)
     eps = 1e-20  # no smaller than 1e-22
@@ -510,16 +510,16 @@ def train_NEM(V, X, model, opts):
     for epoch in range(opts['n_epochs']):    
         for i, (x, v) in enumerate(tr): # x has shape of [n_batch, n_f, n_t, n_c, 1]
             "Initialize spatial covariance matrix"
-            Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed().to(torch.complex64)
+            Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed().to(torch.cfloat)
             "vj is PSD, real tensor, for complex 64 for calc. purpose"
-            vj = v.clone().to(torch.complex64) #  shape of [n_batch, n_s, n_f, n_t]
+            vj = v.to(torch.cfloat) #  shape of [n_batch, n_s, n_f, n_t]
             Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
             "Compute mixture covariance"
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
             Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
 
-            gammaj = torch.ones(n_batch, n_s, opts['gamma_dim']).requires_grad(True)
-            likelihood = torch.zeros(opts['n_iter']).to(torch.complex64)
+            gammaj = torch.ones(n_batch, n_s, opts['gamma_dim']).requires_grad_()
+            likelihood = torch.zeros(opts['n_iter']).to(torch.cfloat)
             optim_gamma = optim.RAdam(
                     [gammaj], # must be iterable
                     lr= opts['lr'],
