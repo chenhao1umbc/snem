@@ -611,7 +611,7 @@ def loss_func(p, x, cj,  vj, Rj):
     Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
     Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
 
-    cj_, Rcj_ = x - cj, Rx[:,None] - Rcj
+    cj_, Rcj_ = x[:,None] - cj, Rx[:,None] - Rcj
     "calc log P(x|cj)"
     e_part = -1*cj_.transpose(-1, -2).conj()@Rcj_.inverse()@cj_  # complex 64 but imag is 0
     det_part = - (np.pi*Rcj_).det().real.log()  # shape of [n_batch, n_s, n_f, n_t]

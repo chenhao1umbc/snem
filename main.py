@@ -8,6 +8,6 @@ x, v = load_data(data='val')
 vj, cj, Rj, neural_net = train_NEM(x, v, model, opts)
 
 # %% test data
-vj, cj, Rj, neural_net = test_NEM(V, X, neural_net, opts)
+vj, cj, Rj, neural_net = test_NEM(v, x, neural_net, opts)
 
 # %%
