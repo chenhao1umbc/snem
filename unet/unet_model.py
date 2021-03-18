@@ -55,8 +55,7 @@ class Up_(nn.Module):
             self.conv = DoubleConv(in_channels, out_channels // 2, in_channels // 2)
         else:
             self.up = nn.ConvTranspose2d(in_channels , in_channels // 2, kernel_size=2, stride=2)
-            self.conv = DoubleConv(in_channels, out_channels)
-
+            self.conv = DoubleConv(in_channels//2, out_channels)
 
     def forward(self, x):
         x = self.up(x)
@@ -78,23 +77,31 @@ class UNetHalf(nn.Module):
         self.n_classes = n_classes
         self.bilinear = bilinear
 
-        self.inc = DoubleConv(n_channels, 1024)
-        self.up1 = Up_(1024, 512, bilinear)
-        self.up2 = Up_(512, 256, bilinear)
-        self.up3 = Up_(256, 128, bilinear)
-        self.up4 = Up_(128, 64, bilinear)
-        self.outc = OutConv(64, n_classes)
-        # self.classify = nn.Linear(4096, 1)
-        # self.sigmoid = nn.Sigmoid()
+        self.inc = DoubleConv(n_channels, 512)
+        self.up1 = Up_(512, 256, bilinear)
+        self.up2 = Up_(256, 128, bilinear)
+        self.up3 = Up_(128, 64, bilinear)
+        self.up4 = Up_(64, 32, bilinear)
+        self.reshape = nn.Sequential(
+            nn.ConvTranspose2d(32, 16, kernel_size=3, stride=1, padding=29),
+            nn.BatchNorm2d(16),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(16, 16, kernel_size=3, padding=1),
+            nn.BatchNorm2d(16),
+            nn.LeakyReLU(inplace=True)
+        )
+
+        self.outc = OutConv(16, n_classes)
 
     def forward(self, x):
         x = self.inc(x)
         x = self.up1(x)
         x = self.up2(x)
         x = self.up3(x)
-        x = self.up4(x)
-        # logits = self.outc(x)
-        return x
+        x = self.up4(x)  # output has W=256, H=256
+        x = self.reshape(x)
+        out = self.outc(x)
+        return out
 
 
 

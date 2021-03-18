@@ -27,7 +27,7 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 #%%
-def load_options(n_s=2, n_epochs=25, n_batch=64):
+def load_options(n_s=2, n_epochs=25, n_batch=32):
     """[set all the parameters]
 
     Args:
@@ -43,7 +43,7 @@ def load_options(n_s=2, n_epochs=25, n_batch=64):
     opts['lr'] = 0.01
     opts['n_batch'] = n_batch
     opts['n_iter'] = 5 # EM iterations
-    opts['d_gamma'] = 32 # gamma dimesion 32*32
+    opts['d_gamma'] = 16 # gamma dimesion 32*32
     opts['n_s'] = n_s  # number of sources
     return opts
 
