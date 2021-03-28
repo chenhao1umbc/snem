@@ -693,4 +693,25 @@ def test_NEM(V, X, model, opts):
             cv_loss = cv_loss + Func.mse_loss(cv_yh, yval)
             torch.cuda.empty_cache()
         loss_cv.append(cv_loss/106)  # averaged over all the iterations
-# %%
+
+
+def get_steer_vec(aoa, n_channel, J=3):
+    """get 'real number' steer vec
+
+    Args:
+        aoa ([vector]): [arriving angles for each source]
+        n_channel ([int]): [How many channels]
+        J ([int]): [How many sources]
+    """
+    eps = 1e-30
+    elementPos = torch.arange(0, n_channel*0.1-0.1, 0.1)
+    c = 299792458
+    fc = 1e9
+    lam = c/fc
+
+    steer_vec = torch.zeros(J ,n_channel) #[n_sources, n_channel)
+    for i in range(J):
+        sv = (elementPos*torch.sin(aoa[i]/180*np.pi)/lam*2*np.pi*1j).exp()
+        vec = sv.real + eps
+        steer_vec[i, :] = vec/ vec.norm()
+    return steer_vec

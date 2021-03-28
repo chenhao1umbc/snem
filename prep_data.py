@@ -43,45 +43,24 @@ from utils import *
 
 # %% generate toy real data 
 d = sio.loadmat('./data/vj.mat')
-vj = d['vj']
+vj = torch.tensor(d['vj']).float()
 J = vj.shape[-1] # how many sources, J =3
 max_db = 20
 n_channel = 3
 
 aoa = (torch.rand(J)-0.5)*90 # in degrees
 power_db = torch.rand(3)*max_db # power diff for each source
+steer_vec = get_steer_vec(aoa, n_channel, J)  # shape [n_sources, n_channel]
+cjnf = torch.zeros( 50*50, n_channel, J ) # [n_sources, F,T, n_channel]
 
-def get_steer_vec(aoa, n_channel, J=3):
-    """get 'real number' steer vec
+for j in range(J):
+    temp = vj[:,:,j]
+    st_sq = steer_vec[j,:]**2
+    cj_nf = (temp.reshape(2500, 1)@st_sq[None, :])**0.5 # x >=0
+    cjnf[:, :, j] = cj_nf * (torch.rand(50*50, n_channel)-0.5).sign()*steer_vec[j,:]
 
-    Args:
-        aoa ([vector]): [arriving angles for each source]
-        n_channel ([int]): [How many channels]
-        J ([int]): [How many sources]
-    """
-    eps = 1e-30
-    elementPos = torch.arange(0, n_channel*0.1-0.1, 0.1)
-    c = 299792458
-    fc = 1e9
-    lam = c/fc
-
-    steer_vec = torch.zeros(J ,n_channel) #[n_sources, n_channel)
-    for i in range(J):
-        sv = (elementPos*torch.sin(aoa[i]/180*np.pi)/lam*2*np.pi*1j).exp()
-        vec = sv.real + eps
-        steer_vec[i, :] = vec/ vec.norm()
-    return steer_vec
-
-steer_vec = get_steer_vec(aoa, n_channel, J)
-# cjnf = torch.zeros(50*50, n_channel, J) # [N*F, n_channel, n_sources]
-# for j in range(J):
-#     temp = vj[:,:,j]
-#     st_sq = steer_vec[j,:]**2
-#     cj_nf = [temp[:]/st_sq]**0.5 # x >=0
-#     cjnf[:, :, j] = cj_nf* (torch.rand(50*50, n_channel)-0.5).sign()*steer_vec[j,:]
-
-# for j in range(J):
-#     cjnf[:,:,j] = 10^[power_db[j]/20] * cjnf[:, :, j]
+for j in range(J):
+    cjnf[:,:,j] = 10^[power_db[j]/20] * cjnf[:, :, j]
 
 
 xnf = sum(cjnf, 3) # sum over all the sources, shape of [N*F, n_channel]
