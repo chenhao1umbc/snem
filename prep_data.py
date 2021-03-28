@@ -60,8 +60,7 @@ for j in range(J):
     cjnf[:, :, j] = cj_nf * (torch.rand(50*50, n_channel)-0.5).sign()*steer_vec[j,:]
 
 for j in range(J):
-    cjnf[:,:,j] = 10^[power_db[j]/20] * cjnf[:, :, j]
+    cjnf[:,:,j] = 10**(power_db[j]/20) * cjnf[:, :, j]
 
-
-xnf = sum(cjnf, 3) # sum over all the sources, shape of [N*F, n_channel]
+xnf = cjnf.sum(2) # sum over all the sources, shape of [N*F, n_channel]
 # %%
