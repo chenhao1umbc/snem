@@ -58,7 +58,33 @@ cj_nf = (vj * (1/st_sq.t()[:, None, None, :]))**0.5 # shape of [n_channel, F, T,
 cjnf = cj_nf * s * steer_vec.t()[:, None, None, :] # shape as cjnf
 cjnf = 10**(power_db[None, None, :]/20) * cjnf
 cjnf = cjnf.permute(3,1,2,0)  # shape as [n_sources, F, T, n_channel]
-xnf = cjnf.sum(0) # sum over all the sources, shape of [N*F, n_channel]
+xnf = cjnf.sum(0) # sum over all the sources, shape of [F, T, n_channel]
 
+
+# %% toy experiment 2
+d = sio.loadmat('./data/vj.mat')
+vj = torch.tensor(d['vj']).float()
+J = vj.shape[-1] # how many sources, J =3
+max_db = 20
+n_channel = 3
+
+move_v = {0:[torch.randint(-5, 15,(1,)), torch.randint(-10, 15,(1,))],
+          1:[torch.randint(-2, 18,(1,)), torch.randint(-15, 5,(1,))],
+          2:[torch.randint(-12, 5,(1,)), torch.randint(-10, 10,(1,))]  
+          }
+for j in range(J):
+    vj [..., j] = torch.roll(vj [..., j], move_v[j], (0,1))
+# plt.imshow(vj[..., 2])
+
+aoa = torch.tensor([20, 45, 70]) # in degrees
+power_db = torch.rand(J)*max_db # power diff for each source
+steer_vec = get_steer_vec(aoa, n_channel, J)  # shape of [n_sources, n_channel]
+cjnf = torch.zeros( 50*50, n_channel, J ) # [FT, n_channel, n_sources]
+s = (torch.rand(n_channel, 50, 50, J)-0.5).sign()
+st_sq = steer_vec**2 # shape of [n_sources, n_channel]
+cj_nf = (vj * (1/st_sq.t()[:, None, None, :]))**0.5 # shape of [n_channel, F, T, n_sources]
+cjnf = cj_nf * s * steer_vec.t()[:, None, None, :] # shape as cjnf
+cjnf = cjnf.permute(3,1,2,0)  # shape as [n_sources, F, T, n_channel]
+xnf = cjnf.sum(0) # sum over all the sources, shape of [F, T, n_channel]
 
 # %%
