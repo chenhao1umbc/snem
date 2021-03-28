@@ -41,7 +41,7 @@ saved as dictionary, with keys as 'data' and 'label'
 #%%
 from utils import *
 
-# %% generate toy real data 
+# %% generate toy real data for experiment 1
 d = sio.loadmat('./data/vj.mat')
 vj = torch.tensor(d['vj']).float()
 J = vj.shape[-1] # how many sources, J =3
@@ -52,19 +52,13 @@ aoa = (torch.rand(J)-0.5)*90 # in degrees
 power_db = torch.rand(J)*max_db # power diff for each source
 steer_vec = get_steer_vec(aoa, n_channel, J)  # shape of [n_sources, n_channel]
 cjnf = torch.zeros( 50*50, n_channel, J ) # [FT, n_channel, n_sources]
-
-for j in range(J):
-    temp = vj[:,:,j]
-    st_sq = steer_vec[j,:]**2
-    cj_nf = (temp.reshape(2500, 1)@(1/st_sq[None, :]))**0.5 # x >=0
-    cjnf[:, :, j] = cj_nf * (torch.rand(50*50, n_channel)-0.5).sign()*steer_vec[j,:]
-
+s = (torch.rand(n_channel, 50, 50, J)-0.5).sign()
 st_sq = steer_vec**2 # shape of [n_sources, n_channel]
-cj_nf0 = (vj * (1/st_sq.t()[:, None, None, :]))**0.5 # shape of [n_channel, F, T, n_sources]
-cjnf0 = cj_nf0 * (torch.rand(n_channel, 50, 50, J)-0.5).sign() \
-    *steer_vec.t()[:, None, None, :] # shape as cjnf
-
+cj_nf = (vj * (1/st_sq.t()[:, None, None, :]))**0.5 # shape of [n_channel, F, T, n_sources]
+cjnf = cj_nf * s * steer_vec.t()[:, None, None, :] # shape as cjnf
 cjnf = 10**(power_db[None, None, :]/20) * cjnf
+cjnf = cjnf.permute(3,1,2,0)  # shape as [n_sources, F, T, n_channel]
+xnf = cjnf.sum(0) # sum over all the sources, shape of [N*F, n_channel]
 
-xnf = cjnf.sum(2) # sum over all the sources, shape of [N*F, n_channel]
+
 # %%
