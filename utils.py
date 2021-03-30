@@ -605,6 +605,141 @@ def train_NEM(X, V, model, opts):
     return cjh, vj, Rj, model
 
 
+
+def train_NEM_plain(X, V, model, opts):
+    """This function is the main body of the training algorithm of NeuralEM for Source Separation
+    only using gradient descent not using nerual networks
+
+    Args:
+        i is sample index, total of n_i 
+        j is source index, total of n_s
+        f is frequecy index, total of n_f
+        n is frame(time) index, total of n_t
+        m is channel index, total of n_c
+
+        V ([real tensor]): [the initial PSD of each mixture sample, shape of [n_i, n_s, n_f, n_t]]
+        X ([complex tensor]): [training mixture samples, shape of [n_i, n_f, n_t, n_c]]
+        model ([neural network]): [neural network with random initials]
+        opts ([dictionary]): [parameters are contained]
+
+    Returns:
+        vj is the updated V, shape of [n_i, n_s, n_f, n_t]
+        cj is the source estimation [n_i, n_s, n_f, n_t, n_c]
+        Rj is the covariace matrix [n_i, n_s, n_c]
+        model is updated neural network
+
+    """
+    n_s, n_batch  = V.shape[1], opts['n_batch']
+    n_i, n_f, n_t, n_c =  X.shape 
+    I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed().to(torch.complex64)
+    eps = 1e-20  # no smaller than 1e-22
+    tr = wrap(X, V, opts)  # tr is a data loader
+
+    optimizer = optim.RAdam(
+                    model.parameters(),
+                    lr= opts['lr'],
+                    betas=(0.9, 0.999),
+                    eps=1e-8,
+                    weight_decay=0)
+    loss_train = []
+    loss_cv = []
+
+    for epoch in range(opts['n_epochs']):    
+        for i, (x, v) in enumerate(tr): # x has shape of [n_batch, n_f, n_t, n_c, 1]
+            "Initialize spatial covariance matrix"
+            Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed().to(torch.cfloat)
+            "vj is PSD, real tensor, for complex 64 for calc. purpose"
+            vj = v.to(torch.cfloat) #  shape of [n_batch, n_s, n_f, n_t]
+            Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
+            "Compute mixture covariance"
+            Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
+            Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
+
+            if torch.cuda.is_available(): 
+                gammaj = torch.ones(n_batch, n_s, opts['d_gamma'],\
+                     opts['d_gamma']).cuda().requires_grad_()
+            else:
+                gammaj = torch.ones(n_batch, n_s, opts['d_gamma'],\
+                     opts['d_gamma']).requires_grad_()
+            likelihood = torch.zeros(opts['n_iter']).to(torch.cfloat)
+            optim_gamma = optim.RAdam(
+                    [gammaj], # must be iterable
+                    lr= opts['lr'],
+                    betas=(0.9, 0.999),
+                    eps=1e-8,
+                    weight_decay=0)
+            for param in model.parameters():
+                param.requires_grad = False
+
+            for ii in range(opts['n_iter']):  # EM loop
+                # the E-step
+                "for computational efficiency, the following steps are merged in loss function"
+                # Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
+                # "Compute mixture covariance"
+                # Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
+                # Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
+
+                "Calc. Wiener Filter"
+                Wj = Rcj @ torch.linalg.inv(Rx)[:,None] # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
+                "get STFT estimation, the conditional mean"
+                cjh = Wj @ x[:,None]  # shape of [n_batch, n_s, n_f, n_t, n_c, 1]
+                "get covariance"# Rcjh shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
+                Rh = (I - Wj)@Rcj
+                Rcjh = cjh@cjh.permute(0,1,2,3,5,4).conj() + Rh
+                Rcjh = (Rcjh + Rcjh.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
+                "calc. log P(cj|x; theta_hat), using log to avoid inf problem" 
+                # R = (Rcj**-1 + (Rx-Rcj)**-1)**-1 = (I - Wj)Rcj, The det of a Hermitian matrix is real
+                logp = -torch.linalg.det(np.pi*Rh).real.log() # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
+
+                # check likihood convergence 
+                likelihood[i] = calc_likelihood(x, Rx)
+
+                # the M-step
+                "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
+                Rj = ((Rcjh/(vj+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
+                "Back propagate to update the input of neural network"
+                vj = model(gammaj) #shape of [n_batch, n_s, n_f, n_t ]
+                loss, Rx, Rcj = loss_func(logp, x, cjh, vj, Rj) # model param is fixed
+                optim_gamma.zero_grad()                
+                loss.back()
+                optim_gamma.step()
+                torch.cuda.empty_cache()        
+
+            #%% the neural network step
+            gammaj.requires_grad_(False)
+            for param in model.parameters():
+                param.requires_grad = True
+            model.train()
+            vj = model(gammaj)           
+            loss = loss_func(logp, x, cjh, vj, Rj) # gamma is fixed          
+            optimizer.zero_grad()   
+            loss.backward()
+            optimizer.step()
+
+            loss_train.append(loss.data.item())
+            torch.cuda.empty_cache()
+            if i%50 == 0: print(f'Current iter is {i} in epoch {epoch}')
+
+        if epoch%1 ==0:
+            plt.figure()
+            plt.plot(loss_train[-1400::50], '-x')
+            plt.title('train loss per 50 iter in last 1400 iterations')
+
+            plt.figure()
+            plt.plot(loss_cv, '--xr')
+            plt.title('val loss per epoch')
+            plt.show()
+        
+        torch.save(model.state_dict(), './f1_unet'+str(epoch)+'.pt')
+        print('current epoch is ', epoch)
+
+        #%% Check convergence
+        "if loss_cv consecutively going up for 5 epochs --> stop"
+        if check_stop(loss_cv):
+            break
+    return cjh, vj, Rj, model
+
+
 def loss_func(logp, x, cj, vj, Rj):
     """[summary]
 
