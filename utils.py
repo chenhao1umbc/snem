@@ -214,31 +214,25 @@ def calc_likelihood(x, Rx):
     Rx : [torch.complex]
         [the covariance matrix, shape of [n_f, n_t, n_c, n_c] or [n_f, n_t]]
     """
-    if x.dim() == 2:  # only 1 channel
-        p1 = (np.pi*Rx)**-1
-        Rx_1 = 1/Rx
-        p2 = e**(-1*x.conj() * Rx_1 * x)
-        P = p1.log() + p2.log()
-    else:
-        "calculated the log likelihood"
-        p1 = torch.tensor( np.linalg.det(np.pi*Rx)**-1)
-        Rx_1 = torch.tensor(np.linalg.inv(Rx))
-        p2 = -x.transpose(-1, -2).conj() @ Rx_1 @x
-        P = p1.log() + p2.squeeze()  # shape of [n_f, n_t]
+    "calculated the log likelihood"
+    p1 = torch.tensor( np.linalg.det(np.pi*Rx)**-0.5)
+    Rx_1 = torch.tensor(np.linalg.inv(Rx))
+    p2 = -0.5* x.transpose(-1, -2) @ Rx_1 @x
+    P = p1.log() + p2.squeeze()  # shape of [n_f, n_t]
 
-        "check the gradient value of the likelihood, not log likelihood"
-        # Rx = tf.convert_to_tensor(Rx.numpy())
-        # x = tf.convert_to_tensor(x.numpy())
-        # with tf.GradientTape() as t:
-        #     t.watch(Rx)
-        #     p1 = tf.linalg.det(np.pi*Rx)**-1
-        #     Rx_1 = tf.linalg.inv(Rx)
-        #     p2 = e**(-tf.matmul(
-        #             tf.matmul(tf.math.conj(tf.expand_dims(x, -2)), Rx_1 ),\
-        #             tf.expand_dims(x, -1)))
-        #     p = tf.reduce_sum(p1 + tf.squeeze(p2))  # shape of [n_f, n_t]
-        # dz_dx = t.gradient(p, Rx)
-        # print(dz_dx)
+    "check the gradient value of the likelihood, not log likelihood"
+    # Rx = tf.convert_to_tensor(Rx.numpy())
+    # x = tf.convert_to_tensor(x.numpy())
+    # with tf.GradientTape() as t:
+    #     t.watch(Rx)
+    #     p1 = tf.linalg.det(np.pi*Rx)**-1
+    #     Rx_1 = tf.linalg.inv(Rx)
+    #     p2 = e**(-tf.matmul(
+    #             tf.matmul(tf.math.conj(tf.expand_dims(x, -2)), Rx_1 ),\
+    #             tf.expand_dims(x, -1)))
+    #     p = tf.reduce_sum(p1 + tf.squeeze(p2))  # shape of [n_f, n_t]
+    # dz_dx = t.gradient(p, Rx)
+    # print(dz_dx)
     return P.sum()
 
 
@@ -496,7 +490,7 @@ def train_NEM(X, V, model, opts):
     """
     n_s, n_batch  = V.shape[1], opts['n_batch']
     n_i, n_f, n_t, n_c =  X.shape 
-    I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed().to(torch.complex64)
+    I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed()
     eps = 1e-20  # no smaller than 1e-22
     tr = wrap(X, V, opts)  # tr is a data loader
 
@@ -512,13 +506,13 @@ def train_NEM(X, V, model, opts):
     for epoch in range(opts['n_epochs']):    
         for i, (x, v) in enumerate(tr): # x has shape of [n_batch, n_f, n_t, n_c, 1]
             "Initialize spatial covariance matrix"
-            Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed().to(torch.cfloat)
+            Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed()
             "vj is PSD, real tensor, for complex 64 for calc. purpose"
-            vj = v.to(torch.cfloat) #  shape of [n_batch, n_s, n_f, n_t]
+            vj = v#  shape of [n_batch, n_s, n_f, n_t]
             Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
             "Compute mixture covariance"
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
-            Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
+            Rx = (Rx + Rx.transpose(-1, -2))/2  # make sure it is symetrix
 
             if torch.cuda.is_available(): 
                 gammaj = torch.ones(n_batch, n_s, opts['d_gamma'],\
@@ -526,7 +520,7 @@ def train_NEM(X, V, model, opts):
             else:
                 gammaj = torch.ones(n_batch, n_s, opts['d_gamma'],\
                      opts['d_gamma']).requires_grad_()
-            likelihood = torch.zeros(opts['n_iter']).to(torch.cfloat)
+            likelihood = torch.zeros(opts['n_iter'])
             optim_gamma = optim.RAdam(
                     [gammaj], # must be iterable
                     lr= opts['lr'],
@@ -550,8 +544,8 @@ def train_NEM(X, V, model, opts):
                 cjh = Wj @ x[:,None]  # shape of [n_batch, n_s, n_f, n_t, n_c, 1]
                 "get covariance"# Rcjh shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
                 Rh = (I - Wj)@Rcj
-                Rcjh = cjh@cjh.permute(0,1,2,3,5,4).conj() + Rh
-                Rcjh = (Rcjh + Rcjh.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
+                Rcjh = cjh@cjh.permute(0,1,2,3,5,4) + Rh
+                Rcjh = (Rcjh + Rcjh.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
                 "calc. log P(cj|x; theta_hat), using log to avoid inf problem" 
                 # R = (Rcj**-1 + (Rx-Rcj)**-1)**-1 = (I - Wj)Rcj, The det of a Hermitian matrix is real
                 logp = -torch.linalg.det(np.pi*Rh).real.log() # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
@@ -631,7 +625,7 @@ def train_NEM_plain(X, V, model, opts):
     """
     n_s, n_batch  = V.shape[1], opts['n_batch']
     n_i, n_f, n_t, n_c =  X.shape 
-    I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed().to(torch.complex64)
+    I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed()
     eps = 1e-20  # no smaller than 1e-22
     tr = wrap(X, V, opts)  # tr is a data loader
 
@@ -647,13 +641,13 @@ def train_NEM_plain(X, V, model, opts):
     for epoch in range(opts['n_epochs']):    
         for i, (x, v) in enumerate(tr): # x has shape of [n_batch, n_f, n_t, n_c, 1]
             "Initialize spatial covariance matrix"
-            Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed().to(torch.cfloat)
+            Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed()
             "vj is PSD, real tensor, for complex 64 for calc. purpose"
-            vj = v.to(torch.cfloat) #  shape of [n_batch, n_s, n_f, n_t]
+            vj = v # shape of [n_batch, n_s, n_f, n_t]
             Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
             "Compute mixture covariance"
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
-            Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is symetrix
+            Rx = (Rx + Rx.transpose(-1, -2))/2  # make sure it is symetrix
 
             if torch.cuda.is_available(): 
                 gammaj = torch.ones(n_batch, n_s, opts['d_gamma'],\
@@ -661,7 +655,7 @@ def train_NEM_plain(X, V, model, opts):
             else:
                 gammaj = torch.ones(n_batch, n_s, opts['d_gamma'],\
                      opts['d_gamma']).requires_grad_()
-            likelihood = torch.zeros(opts['n_iter']).to(torch.cfloat)
+            likelihood = torch.zeros(opts['n_iter'])
             optim_gamma = optim.RAdam(
                     [gammaj], # must be iterable
                     lr= opts['lr'],
@@ -685,8 +679,8 @@ def train_NEM_plain(X, V, model, opts):
                 cjh = Wj @ x[:,None]  # shape of [n_batch, n_s, n_f, n_t, n_c, 1]
                 "get covariance"# Rcjh shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
                 Rh = (I - Wj)@Rcj
-                Rcjh = cjh@cjh.permute(0,1,2,3,5,4).conj() + Rh
-                Rcjh = (Rcjh + Rcjh.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
+                Rcjh = cjh@cjh.permute(0,1,2,3,5,4) + Rh
+                Rcjh = (Rcjh + Rcjh.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
                 "calc. log P(cj|x; theta_hat), using log to avoid inf problem" 
                 # R = (Rcj**-1 + (Rx-Rcj)**-1)**-1 = (I - Wj)Rcj, The det of a Hermitian matrix is real
                 logp = -torch.linalg.det(np.pi*Rh).real.log() # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
@@ -745,10 +739,10 @@ def loss_func(logp, x, cj, vj, Rj):
 
     Args:
         logp ([real tensor]): [log likelyhood of P(cj|x; theta_old), shape of [n_batch, n_s, n_f, n_t,]]
-        x ([complex tensor]): [mixture samples, shape of [n_batch, n_f, n_t, n_c, 1]]
-        cj ([complex tensor]): [each source, shape of [n_batch, n_s, n_f, n_t, n_c, 1]]
+        x ([real tensor]): [mixture samples, shape of [n_batch, n_f, n_t, n_c, 1]]
+        cj ([real tensor]): [each source, shape of [n_batch, n_s, n_f, n_t, n_c, 1]]
         vj ([real tensor]): [required gradient, similar to PSD of the source, shape of [n_batch, n_s, n_f, n_t ]]
-        Rj ([complex tensor]): [hidden covariance, shape of [n_batch, n_s, 1, 1, n_c, n_c]]
+        Rj ([real tensor]): [hidden covariance, shape of [n_batch, n_s, 1, 1, n_c, n_c]]
     Return:
         loss = -1 * \sum_i,n,f \sum_j Q(theta, theta_hat)
     """
@@ -757,19 +751,19 @@ def loss_func(logp, x, cj, vj, Rj):
         logp, x, cj,  vj, Rj = logp.cuda(), x.cuda(), cj.cuda(), vj.cuda(), Rj.cuda()
 
     Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
-    Rcj = (Rcj + Rcj.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
+    Rcj = (Rcj + Rcj.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
     "Compute mixture covariance"
     Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
-    Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
+    Rx = (Rx + Rx.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
 
     cj_, Rcj_ = x[:,None] - cj, Rx[:,None] - Rcj
     "calc log P(x|cj)"
-    e_part = -1*cj_.transpose(-1, -2).conj()@Rcj_.inverse()@cj_  # complex 64 but imag is 0
-    det_part = - (np.pi*Rcj_).det().real.log()  # shape of [n_batch, n_s, n_f, n_t]
+    e_part = -0.5*cj_.transpose(-1, -2)@Rcj_.inverse()@cj_  # complex 64 but imag is 0
+    det_part = - 0.5*(np.pi*Rcj_).det().log()  # shape of [n_batch, n_s, n_f, n_t]
     "calc log P(cj)"
-    e_part_2 = -1*cj.transpose(-1, -2).conj()@Rcj.inverse()@cj  # complex 64 but imag is 0
-    det_part_2 = - (np.pi*Rcj).det().real.log()  # shape of [n_batch, n_s, n_f, n_t]
-    log_part = e_part.real.squeeze()*det_part + e_part_2.real.squeeze()*det_part_2
+    e_part_2 = -0.5*cj.transpose(-1, -2)@Rcj.inverse()@cj  # complex 64 but imag is 0
+    det_part_2 = - 0.5*(np.pi*Rcj).det().log()  # shape of [n_batch, n_s, n_f, n_t]
+    log_part = e_part.squeeze()*det_part + e_part_2.squeeze()*det_part_2
 
     p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
     p[p==float('inf')] = 1e38  # roughly the max of float32
