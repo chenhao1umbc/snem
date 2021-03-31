@@ -215,8 +215,8 @@ def calc_likelihood(x, Rx):
         [the covariance matrix, shape of [n_f, n_t, n_c, n_c] or [n_f, n_t]]
     """
     "calculated the log likelihood"
-    p1 = torch.tensor( np.linalg.det(np.pi*Rx)**-0.5)
-    Rx_1 = torch.tensor(np.linalg.inv(Rx))
+    p1 = torch.linalg.det(np.pi*Rx)**-0.5
+    Rx_1 = torch.linalg.inv(Rx)
     p2 = -0.5* x.transpose(-1, -2) @ Rx_1 @x
     P = p1.log() + p2.squeeze()  # shape of [n_f, n_t]
 
@@ -427,37 +427,28 @@ def plot_log_stft(stft_mix, title="STFT"):
 
 
 #%% this is a new section ##############################################
-def load_data(data='train', n=2):
+def load_data(data='toy1'):
     """load data, for train_val data and test data
 
     Args:
-        data (str, optional): [data type]. Defaults to 'train'.
-        n (int, optional): [how many mixture sources]. Defaults to 2.
+        data (str, optional): [experient 1 or experiment 2]. Defaults to 'toy1'.
 
     Returns:
-        [X, Y]: [data and labels]
+        [x, v]: [data and psd]
     """
-    # route = '/home/chenhao1/Hpython/data/data_ss/'
-    # d = torch.load(route+'train_c6_4800_stft_101000.pt')
-    # x, y = d['data'], d['label']  # x shape of [n_sample=4800, F=200, T=200, n_c=6]
-    x = torch.rand(400, 200, 200, 6, dtype=torch.cfloat)
-    y = torch.tensor([1, 0, 1, 0,0,0])
-    x = x[torch.randperm(x.shape[0])]  #shuffle data
-    xtr = x[:200]
-    xval = x[200:]
+    if data == 'toy1':
+        x = torch.load('./data/x_toy1.pt')  # 20k samples, shape of [i, f, t, channel]
+        v = (x.abs()**2).sum(-1).unsqueeze(1)
+        v = torch.cat(3*[v], 1)
+        return x, v
 
-    vtr0 = xtr.abs().sum(-1)/xtr.shape[-1]
-    vtr = vtr0.clone()[:,None]
-    vval0 = xval.abs().sum(-1)/xtr.shape[-1]
-    vval = vval0.clone()[:,None]
-    for i in range(y.sum().int()-1):
-        vtr = torch.cat((vtr, vtr0[:,None]), 1)
-        vval = torch.cat((vval, vval0[:,None]), 1)
-   
-    if data =='train':
-        return xtr, vtr
+    elif data == 'toy2':
+        #TODO
+        pass
+
     else:
-        return xval, vval
+        print('no data found')
+        return None
 
 
 def init_neural_network(opts):
@@ -491,7 +482,7 @@ def train_NEM(X, V, model, opts):
     n_s, n_batch  = V.shape[1], opts['n_batch']
     n_i, n_f, n_t, n_c =  X.shape 
     I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed()
-    eps = 1e-20  # no smaller than 1e-22
+    eps = 1e-30  # no smaller than 1e-45
     tr = wrap(X, V, opts)  # tr is a data loader
 
     optimizer = optim.RAdam(
@@ -600,7 +591,7 @@ def train_NEM(X, V, model, opts):
 
 
 
-def train_NEM_plain(X, V, model, opts):
+def train_NEM_plain(X, V, opts):
     """This function is the main body of the training algorithm of NeuralEM for Source Separation
     only using gradient descent not using nerual networks
 
@@ -613,7 +604,6 @@ def train_NEM_plain(X, V, model, opts):
 
         V ([real tensor]): [the initial PSD of each mixture sample, shape of [n_i, n_s, n_f, n_t]]
         X ([real tensor]): [training mixture samples, shape of [n_i, n_f, n_t, n_c]]
-        model ([neural network]): [neural network with random initials]
         opts ([dictionary]): [parameters are contained]
 
     Returns:
@@ -626,44 +616,33 @@ def train_NEM_plain(X, V, model, opts):
     n_s, n_batch  = V.shape[1], opts['n_batch']
     n_i, n_f, n_t, n_c =  X.shape 
     I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed()
-    eps = 1e-20  # no smaller than 1e-22
+    eps = 1e-30  # no smaller than 1e-45
     tr = wrap(X, V, opts)  # tr is a data loader
-
-    optimizer = optim.RAdam(
-                    model.parameters(),
-                    lr= opts['lr'],
-                    betas=(0.9, 0.999),
-                    eps=1e-8,
-                    weight_decay=0)
     loss_train = []
-    loss_cv = []
+    _, v = next(iter(tr))
+    vj = v + eps # v is too clean shape of [n_batch, n_s, n_f, n_t]
+    if torch.cuda.is_available(): 
+        gammaj = v[0].clone().cuda().requires_grad_()
+    else:
+        gammaj = v[0].clone().requires_grad_()
+    optim_gamma = optim.RAdam(
+            [gammaj], # must be iterable
+            lr= opts['lr'],
+            betas=(0.9, 0.999),
+            eps=1e-8,
+            weight_decay=0)
 
     for epoch in range(opts['n_epochs']):    
-        for i, (x, v) in enumerate(tr): # x has shape of [n_batch, n_f, n_t, n_c, 1]
+        for i, (x, _) in enumerate(tr): # x has shape of [n_batch, n_f, n_t, n_c, 1]
             "Initialize spatial covariance matrix"
             Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed()
-            "vj is PSD, real tensor, for complex 64 for calc. purpose"
-            vj = v # shape of [n_batch, n_s, n_f, n_t]
-            Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
+            "vj is PSD, real tensor, |xnf|^2" #shape of [n_batch, n_s, n_f, n_t]
+            vj = torch.cat(n_batch *[gammaj[None,...] + eps], 0)
+            Rcj = (vj.detach() * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
             "Compute mixture covariance"
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
             Rx = (Rx + Rx.transpose(-1, -2))/2  # make sure it is symetrix
-
-            if torch.cuda.is_available(): 
-                gammaj = torch.ones(n_batch, n_s, opts['d_gamma'],\
-                     opts['d_gamma']).cuda().requires_grad_()
-            else:
-                gammaj = torch.ones(n_batch, n_s, opts['d_gamma'],\
-                     opts['d_gamma']).requires_grad_()
             likelihood = torch.zeros(opts['n_iter'])
-            optim_gamma = optim.RAdam(
-                    [gammaj], # must be iterable
-                    lr= opts['lr'],
-                    betas=(0.9, 0.999),
-                    eps=1e-8,
-                    weight_decay=0)
-            for param in model.parameters():
-                param.requires_grad = False
 
             for ii in range(opts['n_iter']):  # EM loop
                 # the E-step
@@ -683,7 +662,7 @@ def train_NEM_plain(X, V, model, opts):
                 Rcjh = (Rcjh + Rcjh.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
                 "calc. log P(cj|x; theta_hat), using log to avoid inf problem" 
                 # R = (Rcj**-1 + (Rx-Rcj)**-1)**-1 = (I - Wj)Rcj, The det of a Hermitian matrix is real
-                logp = -torch.linalg.det(np.pi*Rh).real.log() # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
+                logp = -torch.linalg.det(np.pi*Rh).log() # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
                 likelihood[i] = calc_likelihood(x, Rx)
@@ -691,47 +670,30 @@ def train_NEM_plain(X, V, model, opts):
                 # the M-step
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
                 Rj = ((Rcjh/(vj+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
-                "Back propagate to update the input of neural network"
-                vj = model(gammaj) #shape of [n_batch, n_s, n_f, n_t ]
-                loss, Rx, Rcj = loss_func(logp, x, cjh, vj, Rj) # model param is fixed
-                optim_gamma.zero_grad()                
+                "update vj"
+                vj = torch.cat(n_batch *[gammaj + eps], 0)
+                "Back propagate to update the input of neural network"               
+                loss, Rx, Rcj = loss_func(logp, x, cjh, vj, Rj) # model param is fixed     
+                optim_gamma.zero_grad()    # the neural network/ here only gamma step             
                 loss.back()
                 optim_gamma.step()
-                torch.cuda.empty_cache()        
-
-            #%% the neural network step
-            gammaj.requires_grad_(False)
-            for param in model.parameters():
-                param.requires_grad = True
-            model.train()
-            vj = model(gammaj)           
-            loss = loss_func(logp, x, cjh, vj, Rj) # gamma is fixed          
-            optimizer.zero_grad()   
-            loss.backward()
-            optimizer.step()
-
-            loss_train.append(loss.data.item())
-            torch.cuda.empty_cache()
+                         
+                loss_train.append(loss.data.item())
+                torch.cuda.empty_cache()
             if i%50 == 0: print(f'Current iter is {i} in epoch {epoch}')
 
         if epoch%1 ==0:
             plt.figure()
             plt.plot(loss_train[-1400::50], '-x')
             plt.title('train loss per 50 iter in last 1400 iterations')
-
-            plt.figure()
-            plt.plot(loss_cv, '--xr')
-            plt.title('val loss per epoch')
-            plt.show()
         
-        torch.save(model.state_dict(), './f1_unet'+str(epoch)+'.pt')
         print('current epoch is ', epoch)
 
         #%% Check convergence
         "if loss_cv consecutively going up for 5 epochs --> stop"
-        if check_stop(loss_cv):
+        if check_stop(loss_train):
             break
-    return cjh, vj, Rj, model
+    return cjh, vj, Rj 
 
 
 def loss_func(logp, x, cj, vj, Rj):
