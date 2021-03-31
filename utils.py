@@ -26,6 +26,8 @@ torch.manual_seed(0)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
+klog2pi = 5.513631
+
 #%%
 def load_options(n_s=2, n_epochs=25, n_batch=32):
     """[set all the parameters]
@@ -215,24 +217,10 @@ def calc_likelihood(x, Rx):
         [the covariance matrix, shape of [n_f, n_t, n_c, n_c] or [n_f, n_t]]
     """
     "calculated the log likelihood"
-    p1 = torch.linalg.det(np.pi*Rx)**-0.5
+    p1 = -0.5*Rx.det().log() - klog2pi
     Rx_1 = torch.linalg.inv(Rx)
     p2 = -0.5* x.transpose(-1, -2) @ Rx_1 @x
     P = p1.log() + p2.squeeze()  # shape of [n_f, n_t]
-
-    "check the gradient value of the likelihood, not log likelihood"
-    # Rx = tf.convert_to_tensor(Rx.numpy())
-    # x = tf.convert_to_tensor(x.numpy())
-    # with tf.GradientTape() as t:
-    #     t.watch(Rx)
-    #     p1 = tf.linalg.det(np.pi*Rx)**-1
-    #     Rx_1 = tf.linalg.inv(Rx)
-    #     p2 = e**(-tf.matmul(
-    #             tf.matmul(tf.math.conj(tf.expand_dims(x, -2)), Rx_1 ),\
-    #             tf.expand_dims(x, -1)))
-    #     p = tf.reduce_sum(p1 + tf.squeeze(p2))  # shape of [n_f, n_t]
-    # dz_dx = t.gradient(p, Rx)
-    # print(dz_dx)
     return P.sum()
 
 
@@ -720,10 +708,10 @@ def loss_func(logp, x, cj, vj, Rj):
     cj_, Rcj_ = x[:,None] - cj, Rx[:,None] - Rcj
     "calc log P(x|cj)"
     e_part = -0.5*cj_.transpose(-1, -2)@Rcj_.inverse()@cj_ 
-    det_part = - 0.5*(np.pi*Rcj_).det().log()  # shape of [n_batch, n_s, n_f, n_t]
+    det_part = - 0.5*Rcj_.det().log() - klog2pi  # shape of [n_batch, n_s, n_f, n_t]
     "calc log P(cj)"
     e_part_2 = -0.5*cj.transpose(-1, -2)@Rcj.inverse()@cj  
-    det_part_2 = - 0.5*(np.pi*Rcj).det().log()  # shape of [n_batch, n_s, n_f, n_t]
+    det_part_2 = -0.5*Rcj.det().log() - klog2pi  # shape of [n_batch, n_s, n_f, n_t]
     log_part = e_part.squeeze()*det_part + e_part_2.squeeze()*det_part_2
 
     p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
