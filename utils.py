@@ -666,7 +666,7 @@ def train_NEM_plain(X, V, opts):
 
                 # the M-step
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
-                Rj = ((Rcjh/(vj+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
+                Rj = ((Rcjh/(vj.detach()+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
                 "update vj"
                 vj = torch.cat(n_batch *[gammaj[None,...] + eps], 0)
                 "Back propagate to update the input of neural network"               
