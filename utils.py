@@ -616,15 +616,12 @@ def train_NEM_plain(X, V, opts):
     n_s, n_batch  = V.shape[1], opts['n_batch']
     n_i, n_f, n_t, n_c =  X.shape 
     I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed()
-    eps = 1e-30  # no smaller than 1e-45
+    eps = 1e-20  # no smaller than 1e-45
     tr = wrap(X, V, opts)  # tr is a data loader
     loss_train = []
     _, v = next(iter(tr))
     vj = v + eps # v is too clean shape of [n_batch, n_s, n_f, n_t]
-    if torch.cuda.is_available(): 
-        gammaj = v[0].clone().cuda().requires_grad_()
-    else:
-        gammaj = v[0].clone().requires_grad_()
+    gammaj = torch.rand(v[0].shape).requires_grad_()
     optim_gamma = optim.RAdam(
             [gammaj], # must be iterable
             lr= opts['lr'],
@@ -671,11 +668,11 @@ def train_NEM_plain(X, V, opts):
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
                 Rj = ((Rcjh/(vj+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
                 "update vj"
-                vj = torch.cat(n_batch *[gammaj + eps], 0)
+                vj = torch.cat(n_batch *[gammaj[None,...] + eps], 0)
                 "Back propagate to update the input of neural network"               
                 loss, Rx, Rcj = loss_func(logp, x, cjh, vj, Rj) # model param is fixed     
                 optim_gamma.zero_grad()    # the neural network/ here only gamma step             
-                loss.back()
+                loss.backward()
                 optim_gamma.step()
                          
                 loss_train.append(loss.data.item())
@@ -720,17 +717,17 @@ def loss_func(logp, x, cj, vj, Rj):
 
     cj_, Rcj_ = x[:,None] - cj, Rx[:,None] - Rcj
     "calc log P(x|cj)"
-    e_part = -0.5*cj_.transpose(-1, -2)@Rcj_.inverse()@cj_  # complex 64 but imag is 0
+    e_part = -0.5*cj_.transpose(-1, -2)@Rcj_.inverse()@cj_ 
     det_part = - 0.5*(np.pi*Rcj_).det().log()  # shape of [n_batch, n_s, n_f, n_t]
     "calc log P(cj)"
-    e_part_2 = -0.5*cj.transpose(-1, -2)@Rcj.inverse()@cj  # complex 64 but imag is 0
+    e_part_2 = -0.5*cj.transpose(-1, -2)@Rcj.inverse()@cj  
     det_part_2 = - 0.5*(np.pi*Rcj).det().log()  # shape of [n_batch, n_s, n_f, n_t]
     log_part = e_part.squeeze()*det_part + e_part_2.squeeze()*det_part_2
 
     p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
     p[p==float('inf')] = 1e38  # roughly the max of float32
     loss = - (p*log_part).sum()
-    return loss, Rx.requires_grad_(False).cpu(), Rcj.requires_grad_(False).cpu()
+    return loss, Rx.detach().cpu(), Rcj.detach().cpu()
 
 
 def check_stop(loss):
