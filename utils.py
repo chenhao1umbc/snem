@@ -220,7 +220,7 @@ def calc_likelihood(x, Rx):
     p1 = -0.5*Rx.det().log() - klog2pi
     Rx_1 = torch.linalg.inv(Rx)
     p2 = -0.5* x.transpose(-1, -2) @ Rx_1 @x
-    P = p1.log() + p2.squeeze()  # shape of [n_f, n_t]
+    P = p1 + p2.squeeze()  # shape of [n_f, n_t]
     return P.sum()
 
 
@@ -712,7 +712,7 @@ def loss_func(logp, x, cj, vj, Rj):
     "calc log P(cj)"
     e_part_2 = -0.5*cj.transpose(-1, -2)@Rcj.inverse()@cj  
     det_part_2 = -0.5*Rcj.det().log() - klog2pi  # shape of [n_batch, n_s, n_f, n_t]
-    log_part = e_part.squeeze()*det_part + e_part_2.squeeze()*det_part_2
+    log_part = e_part.squeeze_()*det_part + e_part_2.squeeze_()*det_part_2
 
     p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
     p[p==float('inf')] = 1e38  # roughly the max of float32
