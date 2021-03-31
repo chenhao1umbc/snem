@@ -612,7 +612,7 @@ def train_NEM_plain(X, V, model, opts):
         m is channel index, total of n_c
 
         V ([real tensor]): [the initial PSD of each mixture sample, shape of [n_i, n_s, n_f, n_t]]
-        X ([complex tensor]): [training mixture samples, shape of [n_i, n_f, n_t, n_c]]
+        X ([real tensor]): [training mixture samples, shape of [n_i, n_f, n_t, n_c]]
         model ([neural network]): [neural network with random initials]
         opts ([dictionary]): [parameters are contained]
 

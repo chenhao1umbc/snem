@@ -1,65 +1,66 @@
 """
-This file is made to generate the mixture data from LM data set.
-The original data was at 40 MHz sampling rate, 1.8e9=25 seconds for each class
-we use the compressed data at
-/home/chenhao1/Matlab/LMdata/compressed/
+%This file will generate real(not complex) toy data
+% Experiment 1
+% Suppose there are 3 classes, the vj is given, 6 Chennels with real "steer vector"
+% vj shape of 50*50, the component sources have variation of AOA and power 
+% all the x(n,f) the stft is real number
+% 1. try Duang's method
+% 2. try neural EM with 3 networks
 
-the compressed data was generated using the file
-/home/chenhao1/Matlab/LMdata/compressed/data_resize.m
-basically, what it does is take 4e6 length (0.1s) data make STFT,
-then using the image resize to n by n, e.g. we use n=200 here
-next, applying iSTFT to get a complex 1-d sequence.
-
-in this file, we have the loaded
-temp = sio.loadmat( '/home/chenhao1/Matlab/LMdata/compressed/'+var_name[i]+'_200_2k.mat')
-temp['x'] has the shape of 2000 by 20100, meaning 2000 samples, with each sample lenght 20100
-(this 1-d series will be 200 by 200 after STFT, but STFT not processed in this file)
-
-______________ after loading the [2000, 20100] for each class_______________
-each sample is normalized to 1
-after shuffled, 1600 samples as training, 400 samples for test
-labels are one hot encoding, 1 or 0, as dtype float
-also this 1-d series are exteded to 6 channels
-each classs has angle of arrival (AOA) as 60, 40, 20, -20, -40, -60
-positive aoa generates the channel delays as [0, delta_omge, ... delta_omge*5]
-negative aoa generates the channel dalays as [delta_omge*5, ...delta_omge, 0]
-
-The 6 channel mixture data are savd as
-'pre' + 'dict_mix_' + 'n'
-e.g. train_c6_dict_mix_2.pt = 'train_c6_' + 'dict_mix_' + '2' + '.pt'
-pre is for train or test, c6 means 6channels with heigh and width =200, 
-'n' is how many sources in the mixture
-in total, the training has 1600*6 + 1600*15 + 1600*20 + 1600*15+ 1600*6 +1600 samples
-saved as dictionary, with keys as 'data' and 'label'
-
-e.g. train_c6_4800_mix_101000.pt = 'train_c6_' + '4800' +'_mix_' + '101000' + '.pt'
-pre is for train or test, c6 means 6channels with heigh and width =200, 
-'4800' is how many samples of the mixture data. Here 4800 in total
-'101000', is the class labels, meaning class 1 and 3 are the mixture sources
-saved as dictionary, with keys as 'data' and 'label'
+% Experiment 2
+% Suppose there are 3 classes, AOA and power are given
+% there are variation of vj in each class
+% try neural EM with 3 networks to see how \gamma_j works
 """
 #%%
 from utils import *
 
 # %% generate toy real data for experiment 1
+"""
+% real world data is complex time series cj(t)
+% it has n_channel channels as cj(t).*steer_vec
+% vj(n,f) = sum(|STFT(cj(t).*steer_vec)|.^2)/n_channel
+
+% Here to make sure cj(n,f) is real number, is real number, we have
+% cj(n,f) = cj_(n,f).*steer_vec
+% vj(n,f) = sum(|cj(n,f)|.^2)/n_channel, where cj(n,f) is the real number
+
+% the following code is a demo of showing the correctness
+% the code for exp_1 data generation starts at line 104
+
+% check if vj can be calculated from cjnf
+cjnf = cjnf.permute(3,1,2,0) 
+cjnf = cjnf /(10**(power_db[None, None, :]/20))
+cjnf = cjnf.permute(3,1,2,0) 
+v = (cjnf.abs()**2).sum(-1)/n_channel
+"""
+
 d = sio.loadmat('./data/vj.mat')
 vj = torch.tensor(d['vj']).float()
 J = vj.shape[-1] # how many sources, J =3
 max_db = 20
 n_channel = 3
 
-aoa = (torch.rand(J)-0.5)*90 # in degrees
-power_db = torch.rand(J)*max_db # power diff for each source
-steer_vec = get_steer_vec(aoa, n_channel, J)  # shape of [n_sources, n_channel]
-cjnf = torch.zeros( 50*50, n_channel, J ) # [FT, n_channel, n_sources]
-s = (torch.rand(n_channel, 50, 50, J)-0.5).sign()
-st_sq = steer_vec**2 # shape of [n_sources, n_channel]
-cj_nf = (vj * (1/st_sq.t()[:, None, None, :]))**0.5 # shape of [n_channel, F, T, n_sources]
-cjnf = cj_nf * s * steer_vec.t()[:, None, None, :] # shape as cjnf
-cjnf = 10**(power_db[None, None, :]/20) * cjnf
-cjnf = cjnf.permute(3,1,2,0)  # shape as [n_sources, F, T, n_channel]
-xnf = cjnf.sum(0) # sum over all the sources, shape of [F, T, n_channel]
+N = 20000
+x = torch.zeros(N, 50, 50, 3)
+cj = torch.zeros(N, 3, 50, 50, 3)
+for i in range(N):
+    aoa = (torch.rand(J)-0.5)*90 # in degrees
+    power_db = torch.rand(J)*max_db # power diff for each source
+    steer_vec = get_steer_vec(aoa, n_channel, J)  # shape of [n_sources, n_channel]
+    cjnf = torch.zeros( 50*50, n_channel, J ) # [FT, n_channel, n_sources]
+    s = (torch.rand(n_channel, 50, 50, J)-0.5).sign()
+    st_sq = steer_vec**2 # shape of [n_sources, n_channel]
+    cj_nf = (vj * (1/st_sq.t()[:, None, None, :]))**0.5 # shape of [n_channel, F, T, n_sources]
+    cjnf = cj_nf * s * steer_vec.t()[:, None, None, :] # shape as cjnf
+    cjnf = 10**(power_db[None, None, :]/20) * cjnf
+    cjnf = cjnf.permute(3,1,2,0)  # shape as [n_sources, F, T, n_channel]
+    xnf = cjnf.sum(0) # sum over all the sources, shape of [F, T, n_channel]
 
+    x[i] = xnf
+    cj[i] = cjnf
+# torch.save(x, 'x_toy1.pt')
+# torch.save(cj, 'cj_toy1.pt')
 
 # %% toy experiment 2
 d = sio.loadmat('./data/vj.mat')

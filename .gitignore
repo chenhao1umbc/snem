@@ -3,6 +3,7 @@ data/
 __pycache__/
 checkpoints/
 *.pth
+*.pt
 *.jpg
 SUBMISSION*
 venv/
