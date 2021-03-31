@@ -621,7 +621,9 @@ def train_NEM_plain(X, V, opts):
     loss_train = []
     _, v = next(iter(tr))
     vj = v + eps # v is too clean shape of [n_batch, n_s, n_f, n_t]
-    gammaj = torch.rand(v[0].shape).requires_grad_()
+    gammaj = (torch.rand(v[0].shape)-0.5).abs().requires_grad_()
+
+    # optim_gamma = torch.optim.SGD([gammaj], lr= opts['lr'])
     optim_gamma = optim.RAdam(
             [gammaj], # must be iterable
             lr= opts['lr'],
@@ -727,6 +729,8 @@ def loss_func(logp, x, cj, vj, Rj):
     p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
     p[p==float('inf')] = 1e38  # roughly the max of float32
     loss = - (p*log_part).sum()
+    if loss.isnan():
+        print('error happens')
     return loss, Rx.detach().cpu(), Rcj.detach().cpu()
 
 
