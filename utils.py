@@ -662,7 +662,7 @@ def train_NEM_plain(X, V, opts):
                 logp = -torch.linalg.det(np.pi*Rh).log() # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
-                likelihood[i] = calc_likelihood(x, Rx)
+                likelihood[ii] = calc_likelihood(x, Rx)
 
                 # the M-step
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                

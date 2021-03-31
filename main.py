@@ -11,12 +11,6 @@ vj, cj, Rj, neural_net = train_NEM_plain(x, v, opts)
 
 
 
-
-
-
-
-
-
 # %% test data
 vj, cj, Rj, neural_net = test_NEM(v, x, neural_net, opts)
 
