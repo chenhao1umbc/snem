@@ -610,9 +610,9 @@ def train_NEM_plain(X, V, opts):
     likelihood = []
     _, v = next(iter(tr))
     vj = v + eps # v is too clean shape of [n_batch, n_s, n_f, n_t]
-    gammaj = torch.rand(v[0].shape).requires_grad_()
+    gammaj = (torch.rand(v[0].shape)/10).requires_grad_()
     
-    # optim_gamma = torch.optim.SGD([gammaj], lr= opts['lr'])
+    optim_gamma = torch.optim.SGD([gammaj], lr= opts['lr'])
     # optim_gamma = optim.RAdam(
     #         [gammaj], # must be iterable
     #         lr= opts['lr'],
@@ -661,20 +661,17 @@ def train_NEM_plain(X, V, opts):
                 vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
                 "Back propagate to update the input of neural network"               
                 loss, Rx, Rcj = loss_func(logp, x, cjh, vj, Rj) # model param is fixed     
-                # optim_gamma.zero_grad()    # the neural network/ here only gamma step             
+                optim_gamma.zero_grad()    # the neural network/ here only gamma step             
                 loss.backward()
-                # torch.nn.utils.clip_grad_norm_([gammaj], max_norm=10)
-                print( gammaj.abs().max().data, vj.max().data, gammaj.grad.abs().max())
-                # optim_gamma.step()    
-                with torch.no_grad():   
-                    grad = gammaj.grad.clone()
-                    gammaj = gammaj -opts['lr']*gammaj.grad
-                    
-                gammaj.requires_grad_()
-                print('updated max gammaj', gammaj.abs().max().data)
+                # print('\nmax gammaj grad before clip', gammaj.grad.abs().max().data)
+                torch.nn.utils.clip_grad_norm_([gammaj], max_norm=500)
+                optim_gamma.step()    
                 loss_train.append(loss.data.item())
                 torch.cuda.empty_cache()
-        if i%50 == 0: print(f'Current iter is {i} in epoch {epoch}')
+            if i%50 == 0: 
+                print(f'Current iter is {i} in epoch {epoch}')
+                print('max gamma, min gamma, max vj, max |gamma.grad|' ,\
+                    gammaj.max().data, gammaj.min().data, vj.max().data, gammaj.grad.abs().max())
 
         if epoch%1 ==0:
             plt.figure()
