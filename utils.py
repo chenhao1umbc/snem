@@ -610,7 +610,7 @@ def train_NEM_plain(X, V, opts):
     likelihood = []
     _, v = next(iter(tr))
     vj = v + eps # v is too clean shape of [n_batch, n_s, n_f, n_t]
-    gammaj = (torch.rand(v[0].shape)-0.5).abs().requires_grad_()
+    gammaj = torch.rand(v[0].shape).requires_grad_()
     
     # optim_gamma = torch.optim.SGD([gammaj], lr= opts['lr'])
     optim_gamma = optim.RAdam(
@@ -625,7 +625,7 @@ def train_NEM_plain(X, V, opts):
             "Initialize spatial covariance matrix"
             Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed()
             "vj is PSD, real tensor, |xnf|^2" #shape of [n_batch, n_s, n_f, n_t]
-            vj = torch.cat(n_batch *[gammaj[None,...] + eps], 0)
+            vj = torch.cat(n_batch *[gammaj[None,...] + eps], 0).exp()
             Rcj = (vj.detach() * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
             "Compute mixture covariance"
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
@@ -652,22 +652,19 @@ def train_NEM_plain(X, V, opts):
                 logp = -torch.linalg.det(np.pi*Rh).log() # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
-                likelihood.append(calc_likelihood(x, Rx))
+                likelihood.append(calc_likelihood(x, Rx).item())
 
                 # the M-step
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
                 Rj = ((Rcjh/(vj.detach()+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
                 "update vj"
-                vj = torch.cat(n_batch *[gammaj[None,...] + eps], 0)
+                vj = torch.cat(n_batch *[gammaj[None,...] + eps], 0).exp()
                 "Back propagate to update the input of neural network"               
                 loss, Rx, Rcj = loss_func(logp, x, cjh, vj, Rj) # model param is fixed     
                 optim_gamma.zero_grad()    # the neural network/ here only gamma step             
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_([gammaj], max_norm=10)
-                optim_gamma.step()
-                if gammaj[gammaj<0].numel()>1:
-                    print('Negative gamma value')
-                         
+                # torch.nn.utils.clip_grad_norm_([gammaj], max_norm=10)
+                optim_gamma.step()                         
                 loss_train.append(loss.data.item())
                 torch.cuda.empty_cache()
         if i%50 == 0: print(f'Current iter is {i} in epoch {epoch}')
