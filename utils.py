@@ -625,7 +625,7 @@ def train_NEM_plain(X, V, opts):
             "Initialize spatial covariance matrix"
             Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed()
             "vj is PSD, real tensor, |xnf|^2" #shape of [n_batch, n_s, n_f, n_t]
-            vj = torch.cat(n_batch *[gammaj[None,...] + eps], 0).exp()
+            vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
             Rcj = (vj.detach() * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
             "Compute mixture covariance"
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
@@ -658,7 +658,7 @@ def train_NEM_plain(X, V, opts):
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
                 Rj = ((Rcjh/(vj.detach()+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
                 "update vj"
-                vj = torch.cat(n_batch *[gammaj[None,...] + eps], 0).exp()
+                vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
                 "Back propagate to update the input of neural network"               
                 loss, Rx, Rcj = loss_func(logp, x, cjh, vj, Rj) # model param is fixed     
                 optim_gamma.zero_grad()    # the neural network/ here only gamma step             
@@ -705,7 +705,7 @@ def loss_func(logp, x, cj, vj, Rj):
     Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
     Rx = (Rx + Rx.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
 
-    cj_, Rcj_ = x[:,None] - cj, Rx[:,None] - Rcj
+    cj_, Rcj_ = x[:,None] - cj, Rx[:,None] - Rcj + torch.eye(3)*1e-20 # small number to avoid low rank
     "calc log P(x|cj)"
     e_part = -0.5*cj_.transpose(-1, -2)@Rcj_.inverse()@cj_ 
     det_part = - 0.5*Rcj_.det().log() - klog2pi  # shape of [n_batch, n_s, n_f, n_t]
