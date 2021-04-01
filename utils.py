@@ -696,7 +696,9 @@ def loss_func(logp, x, cj, vj, Rj):
         loss = -1 * \sum_i,n,f \sum_j Q(theta, theta_hat)
     """
     "calc log P(cj, x ; theta) = log P(cj ; theta) + log P(x|cj ; theta)"
+    eps = torch.eye(3)*1e-20
     if torch.cuda.is_available():
+        eps = torch.eye(3, device='cuda')*1e-20
         logp, x, cj,  vj, Rj = logp.cuda(), x.cuda(), cj.cuda(), vj.cuda(), Rj.cuda()
 
     Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
@@ -705,7 +707,7 @@ def loss_func(logp, x, cj, vj, Rj):
     Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
     Rx = (Rx + Rx.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
 
-    cj_, Rcj_ = x[:,None] - cj, Rx[:,None] - Rcj + torch.eye(3)*1e-20 # small number to avoid low rank
+    cj_, Rcj_ = x[:,None] - cj, Rx[:,None] - Rcj + eps # small number to avoid low rank
     "calc log P(x|cj)"
     e_part = -0.5*cj_.transpose(-1, -2)@Rcj_.inverse()@cj_ 
     det_part = - 0.5*Rcj_.det().log() - klog2pi  # shape of [n_batch, n_s, n_f, n_t]
@@ -718,7 +720,7 @@ def loss_func(logp, x, cj, vj, Rj):
     p[p==float('inf')] = 1e38  # roughly the max of float32
     loss = - (p*log_part).sum()
     if loss.isnan():
-        print('error happens')
+        print(error happens)
     return loss, Rx.detach().cpu(), Rcj.detach().cpu()
 
 
