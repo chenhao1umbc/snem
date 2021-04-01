@@ -44,7 +44,7 @@ def load_options(n_s=2, n_epochs=25, n_batch=32):
     opts['n_epochs'] = n_epochs 
     opts['lr'] = 0.01
     opts['n_batch'] = n_batch
-    opts['n_iter'] = 5 # EM iterations
+    opts['n_iter'] = 20 # EM iterations
     opts['d_gamma'] = 16 # gamma dimesion 32*32
     opts['n_s'] = n_s  # number of sources
     return opts
@@ -601,7 +601,7 @@ def train_NEM_plain(X, V, opts):
         model is updated neural network
 
     """
-    n_s, n_batch  = V.shape[1], opts['n_batch']
+    n_s  = V.shape[1]
     n_i, n_f, n_t, n_c =  X.shape 
     I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed()
     eps = 1e-20  # no smaller than 1e-45
@@ -622,6 +622,7 @@ def train_NEM_plain(X, V, opts):
 
     for epoch in range(opts['n_epochs']):    
         for i, (x, _) in enumerate(tr): # x has shape of [n_batch, n_f, n_t, n_c, 1]
+            n_batch = x.shape[0]
             "Initialize spatial covariance matrix"
             Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed()
             "vj is PSD, real tensor, |xnf|^2" #shape of [n_batch, n_s, n_f, n_t]
