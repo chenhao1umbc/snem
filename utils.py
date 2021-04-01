@@ -603,7 +603,7 @@ def train_NEM_plain(X, V, opts):
     """
     n_s  = V.shape[1]
     n_i, n_f, n_t, n_c =  X.shape 
-    I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed()
+    I =  torch.ones(opts['n_batch'], n_s, n_f, n_t, n_c).diag_embed()
     eps = 1e-20  # no smaller than 1e-45
     tr = wrap(X, V, opts)  # tr is a data loader
     loss_train = []
@@ -714,16 +714,16 @@ def loss_func(logp, x, cj, vj, Rj):
 
     cj_, Rcj_ = x[:,None] - cj, Rx[:,None] - Rcj + eps # small number to avoid low rank
     "calc log P(x|cj)"
-    e_part = -0.5*cj_.transpose(-1, -2)@Rcj_.inverse()@cj_ 
-    det_part = - 0.5*Rcj_.det().log() - klog2pi  # shape of [n_batch, n_s, n_f, n_t]
+    e_part = 0.5*cj_.transpose(-1, -2)@Rcj_.inverse()@cj_ 
+    det_part = 0.5*Rcj_.det().log() - klog2pi  # shape of [n_batch, n_s, n_f, n_t]
     "calc log P(cj)"
-    e_part_2 = -0.5*cj.transpose(-1, -2)@Rcj.inverse()@cj  
-    det_part_2 = -0.5*Rcj.det().log() - klog2pi  # shape of [n_batch, n_s, n_f, n_t]
-    log_part = e_part.squeeze_()*det_part + e_part_2.squeeze_()*det_part_2
+    e_part_2 = 0.5*cj.transpose(-1, -2)@Rcj.inverse()@cj  
+    det_part_2 = 0.5*Rcj.det().log() - klog2pi  # shape of [n_batch, n_s, n_f, n_t]
+    log_part = e_part.squeeze_() + det_part + e_part_2.squeeze_() + det_part_2
 
     p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
     p[p==float('inf')] = 1e38  # roughly the max of float32
-    loss = - (p*log_part).sum()
+    loss = (p*log_part).sum()
     if loss.isnan():
         error_happens
     return loss, Rx.detach().cpu(), Rcj.detach().cpu()
