@@ -662,7 +662,7 @@ def train_NEM_plain(X, V, opts):
                 # vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
                 vj = (Rj.inverse() @ Rcjh).diagonal(dim1=-2, dim2=-1).sum(-1)/n_c
                 "Back propagate to update the input of neural network"               
-                loss, Rx, Rcj = loss_func(logp, x, cjh, vj, Rj, I) # model param is fixed     
+                loss, Rx, Rcj = loss_func(logp, x, cjh, vj, Rj) # model param is fixed     
                 optim_gamma.zero_grad()    # the neural network/ here only gamma step             
                 # loss.backward()
                 # print('\nmax gammaj grad before clip', gammaj.grad.abs().max().data)
@@ -689,7 +689,7 @@ def train_NEM_plain(X, V, opts):
     return cjh, vj, Rj 
 
 
-def loss_func(logp, x, cj, vj, Rj, I=0):
+def loss_func(logp, x, cj, vj, Rj):
     """[summary]
 
     Args:
@@ -703,6 +703,7 @@ def loss_func(logp, x, cj, vj, Rj, I=0):
     """
     "calc log P(cj, x ; theta) = log P(cj ; theta) + log P(x|cj ; theta)"
     eps = torch.eye(3)*1e-20
+    I =  torch.ones(x.shape[:-1]).diag_embed()
     if torch.cuda.is_available():
         eps, I = torch.eye(3, device='cuda')*1e-20, I.cuda()
         logp, x, cj,  vj, Rj = logp.cuda(), x.cuda(), cj.cuda(), vj.cuda(), Rj.cuda()
@@ -722,15 +723,16 @@ def loss_func(logp, x, cj, vj, Rj, I=0):
     det_part_2 = -0.5*Rcj.det().log() - klog2pi_2  # shape of [n_batch, n_s, n_f, n_t]
     log_part = e_part.squeeze_() + det_part + e_part_2.squeeze_() + det_part_2
 
-    "Another way calc log P(cj|x) and log P(x)"
-    "calc log P(cj|x), because cj equals cjh, epart=0"
-    Wj = Rcj @ torch.linalg.inv(Rx)[:,None] 
-    Rh = (I - Wj)@Rcj # as Rcjh, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
-    p0 = -0.5*Rh.det().log() - klog2pi_2 # shape of [n_batch, n_s, n_f, n_t]
-    "calc log P(x)"
-    p1 = -0.5*Rx.det().log() - klog2pi_2
-    p2 = -0.5* x.transpose(-1, -2) @ Rx.inverse() @x
-    P = p1 + p2.squeeze_() + p0 # shape of [n_f, n_t]
+    # "Another way calc log P(cj|x) and log P(x)"
+    # "calc log P(cj|x), because cj equals cjh, epart=0"
+    # Wj = Rcj @ torch.linalg.inv(Rx)[:,None] 
+    # Rh = (I - Wj)@Rcj # as Rcjh, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
+    # p0 = -0.5*Rh.det().log() - klog2pi_2 # shape of [n_batch, n_s, n_f, n_t]
+    # "calc log P(x)"
+    # p1 = -0.5*Rx.det().log() - klog2pi_2
+    # p2 = -0.5* x.transpose(-1, -2) @ Rx.inverse() @x
+    # P = p1 + p2.squeeze_() + p0 # shape of [n_f, n_t]
+    # print('the diff between two ways', (P-log_part).abs().sum(), 'without diff', (P).abs().sum())
 
     p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
     p[p==float('inf')] = 1e38  # roughly the max of float32
