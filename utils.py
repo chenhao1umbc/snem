@@ -217,7 +217,7 @@ def calc_likelihood(x, Rx):
         [the covariance matrix, shape of [n_f, n_t, n_c, n_c] or [n_f, n_t]]
     """
     "calculated the log likelihood"
-    p1 = -0.5*Rx.det().log() - klog2pi
+    p1 = -0.5*Rx.det().log() - klog2pi_2
     Rx_1 = torch.linalg.inv(Rx)
     p2 = -0.5* x.transpose(-1, -2) @ Rx_1 @x
     P = p1 + p2.squeeze_()  # shape of [n_f, n_t]
@@ -650,7 +650,7 @@ def train_NEM_plain(X, V, opts):
                 Rcjh = (Rcjh + Rcjh.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
                 "calc. log P(cj|x; theta_hat), using log to avoid inf problem" 
                 # R = (Rcj**-1 + (Rx-Rcj)**-1)**-1 = (I - Wj)Rcj, The det of a Hermitian matrix is real
-                logp = -0.5*Rh.det().log() - klog2pi # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
+                logp = -0.5*Rh.det().log() - klog2pi_2 # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
                 likelihood.append(calc_likelihood(x, Rx).item())
@@ -716,19 +716,19 @@ def loss_func(logp, x, cj, vj, Rj, I=0):
     cj_, Rcj_ = x[:,None] - cj, Rx[:,None] - Rcj + eps # small number to avoid low rank
     "calc log P(x|cj)"
     e_part = -0.5*cj_.transpose(-1, -2)@Rcj_.inverse()@cj_ 
-    det_part = -0.5*Rcj_.det().log() - klog2pi  # shape of [n_batch, n_s, n_f, n_t]
+    det_part = -0.5*Rcj_.det().log() - klog2pi_2  # shape of [n_batch, n_s, n_f, n_t]
     "calc log P(cj)"
     e_part_2 = -0.5*cj.transpose(-1, -2)@Rcj.inverse()@cj  
-    det_part_2 = -0.5*Rcj.det().log() - klog2pi  # shape of [n_batch, n_s, n_f, n_t]
+    det_part_2 = -0.5*Rcj.det().log() - klog2pi_2  # shape of [n_batch, n_s, n_f, n_t]
     log_part = e_part.squeeze_() + det_part + e_part_2.squeeze_() + det_part_2
 
     "Another way calc log P(cj|x) and log P(x)"
     "calc log P(cj|x), because cj equals cjh, epart=0"
     Wj = Rcj @ torch.linalg.inv(Rx)[:,None] 
     Rh = (I - Wj)@Rcj # as Rcjh, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
-    p0 = -0.5*Rh.det().log() - klog2pi # shape of [n_batch, n_s, n_f, n_t]
+    p0 = -0.5*Rh.det().log() - klog2pi_2 # shape of [n_batch, n_s, n_f, n_t]
     "calc log P(x)"
-    p1 = -0.5*Rx.det().log() - klog2pi
+    p1 = -0.5*Rx.det().log() - klog2pi_2
     p2 = -0.5* x.transpose(-1, -2) @ Rx.inverse() @x
     P = p1 + p2.squeeze_() + p0 # shape of [n_f, n_t]
 
