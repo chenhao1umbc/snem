@@ -723,16 +723,16 @@ def loss_func(logp, x, cj, vj, Rj):
     det_part_2 = -0.5*Rcj.det().log() - klog2pi_2  # shape of [n_batch, n_s, n_f, n_t]
     log_part = e_part.squeeze_() + det_part + e_part_2.squeeze_() + det_part_2
 
-    # "Another way calc log P(cj|x) and log P(x)"
-    # "calc log P(cj|x), because cj equals cjh, epart=0"
-    # Wj = Rcj @ torch.linalg.inv(Rx)[:,None] 
-    # Rh = (I - Wj)@Rcj # as Rcjh, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
-    # p0 = -0.5*Rh.det().log() - klog2pi_2 # shape of [n_batch, n_s, n_f, n_t]
-    # "calc log P(x)"
-    # p1 = -0.5*Rx.det().log() - klog2pi_2
-    # p2 = -0.5* x.transpose(-1, -2) @ Rx.inverse() @x
-    # P = p1 + p2.squeeze_() + p0 # shape of [n_f, n_t]
-    # print('the diff between two ways', (P-log_part).abs().sum(), 'without diff', (P).abs().sum())
+    "Another way calc log P(cj|x) and log P(x)"
+    "calc log P(cj|x), because cj equals cjh, epart=0"
+    Wj = Rcj @ torch.linalg.inv(Rx)[:,None] 
+    Rh = (I - Wj)@Rcj # as Rcjh, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
+    p0 = -0.5*Rh.det().log() - klog2pi_2 # shape of [n_batch, n_s, n_f, n_t]
+    "calc log P(x)"
+    p1 = -0.5*Rx.det().log() - klog2pi_2
+    p2 = -0.5* x.transpose(-1, -2) @ Rx.inverse() @x
+    P = p1 + p2.squeeze_() + p0 # shape of [n_f, n_t]
+    print('the diff between two ways', (P-log_part).abs().sum(), 'without diff', (P).abs().sum())
 
     p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
     p[p==float('inf')] = 1e38  # roughly the max of float32
