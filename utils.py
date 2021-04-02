@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 plt.rcParams['figure.dpi'] = 100
 
+from unet.unet_model import UNet
 from unet.unet_model import UNetHalf
 import torch_optimizer as optim
 
@@ -139,7 +140,7 @@ def get_mixdata_label(mix=1, pre='train_'):
         -------
         [data, label]
     """
-    dicts = torch.load('../data/data_ss/'+pre+'dict_mix_'+str(mix)+'.pt')
+    dicts = torch.load('../data/data_ss/stage_1/'+pre+'dict_mix_'+str(mix)+'.pt')
     label = get_label(dicts['label'], dicts['data'].shape[:2])
     return dicts['data'], label
 
@@ -371,6 +372,7 @@ def em10(init_stft, stft_mix, n_iter):
         cjh = torch.cat((cjh, vj.unsqueeze(-1)), dim=-1)
     cjh_list.append(cjh.squeeze())
     likelihood = torch.zeros(n_iter).to(torch.complex64)
+    loss_train = []
 
     for i in range(n_iter):
         Rcj = (vj * Rj.permute(3,4,0,1,2)).permute(2,3,4,0,1) # shape as Rcjh
@@ -382,7 +384,12 @@ def em10(init_stft, stft_mix, n_iter):
         "get STFT estimation, the conditional mean"
         cjh = Wj @ x  # shape of [n_s, n_f, n_t, n_c, 1]
         cjh_list.append(cjh.squeeze())
-        likelihood[i] = calc_likelihood(torch.tensor(stft_mix), Rx)
+        likelihood[i] = calc_likelihood(x, Rx)
+
+        "calc log P(cj|x), because cj equals cjh, epart=0"
+        Wj0 = Rcj @ torch.linalg.inv(Rx)
+        Rh = (I - Wj0)@Rcj # as Rcjh, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
+        logp = -Rh.det().log() - n_c*np.log(np.pi) # shape of [n_batch, n_s, n_f, n_t]
 
         "get covariance"
         Rcjh = cjh@cjh.permute(0,1,2,4,3).conj() + (I -  Wj) @ Rcj 
@@ -392,9 +399,65 @@ def em10(init_stft, stft_mix, n_iter):
         "cal spatial covariance matrix"
         Rj = ((Rcjh/(vj+eps)[...,None, None]).sum(2)/n_t).unsqueeze(2)
 
+        loss, Rx, Rcj = loss_f(logp, x, cjh, vj, Rj) # model param is fixed     
+        loss_train.append(loss.data.item())
+
     return cjh_list, likelihood
 
 
+def loss_f(logp, x, cj, vj, Rj):
+    """[summary]
+
+    Args:
+        logp ([real tensor]): [log likelyhood of P(cj|x; theta_old), shape of [n_s, n_f, n_t,]]
+        x ([real tensor]): [mixture samples, shape of [n_f, n_t, n_c, 1]]
+        cj ([real tensor]): [each source, shape of [n_s, n_f, n_t, n_c, 1]]
+        vj ([real tensor]): [required gradient, similar to PSD of the source, shape of [n_s, n_f, n_t ]]
+        Rj ([real tensor]): [hidden covariance, shape of [n_s, 1, 1, n_c, n_c]]
+    Return:
+        loss = -1 * \sum_i,n,f \sum_j Q(theta, theta_hat)
+    """
+    "calc log P(cj, x ; theta) = log P(cj ; theta) + log P(x|cj ; theta)"
+    I =  torch.ones(x.shape[:-1]).diag_embed()
+    n_c = x.shape[-2]
+    eps = torch.eye(n_c)*1e-20
+    if torch.cuda.is_available():
+        eps, I = torch.eye(n_c, device='cuda')*1e-20, I.cuda()
+        logp, x, cj,  vj, Rj = logp.cuda(), x.cuda(), cj.cuda(), vj.cuda(), Rj.cuda()
+
+    Rcj = (vj * Rj.permute(3,4,0,1,2)).permute(2,3,4,0,1) # shape as Rcjh
+    Rcj = (Rcj + Rcj.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
+    "Compute mixture covariance"
+    Rx = Rcj.sum(0)  #shape of [n_batch, n_f, n_t, n_c, n_c]
+    Rx = (Rx + Rx.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
+
+    cj_, Rcj_ = x[None,...] - cj, Rx[None,...] - Rcj + eps # small number to avoid low rank
+    "calc log P(x|cj)"
+    e_part = -cj_.transpose(-1, -2).conj()@Rcj_.inverse()@cj_ 
+    det_part = -Rcj_.det().log() - n_c*np.log(np.pi)  # shape of [n_batch, n_s, n_f, n_t]
+    "calc log P(cj)"
+    e_part_2 = -cj.transpose(-1, -2).conj()@Rcj.inverse()@cj  
+    det_part_2 = -Rcj.det().log() - n_c*np.log(np.pi)  # shape of [n_batch, n_s, n_f, n_t]
+    log_part = e_part.squeeze_() + det_part + e_part_2.squeeze_() + det_part_2
+    lp = log_part.real
+
+    # "Another way calc log P(cj|x) and log P(x)"
+    # "calc log P(cj|x), because cj equals cjh, epart=0"
+    # Wj = Rcj @ torch.linalg.inv(Rx)[:,None] 
+    # Rh = (I - Wj)@Rcj # as Rcjh, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
+    # p0 = -0.5*Rh.det().log() - klog2pi_2 # shape of [n_batch, n_s, n_f, n_t]
+    # "calc log P(x)"
+    # p1 = -0.5*Rx.det().log() - klog2pi_2
+    # p2 = -0.5* x.transpose(-1, -2) @ Rx.inverse() @x
+    # P = p1 + p2.squeeze_() + p0 # shape of [n_f, n_t]
+    # print('the diff between two ways', (P-log_part).abs().sum(), 'without diff', (P).abs().sum())
+
+    p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
+    p[p==float('inf')] = 1e38  # roughly the max of float32
+    loss = -(p*lp).sum()
+    if loss.isnan():
+        error_happens
+    return loss, Rx.detach().cpu(), Rcj.detach().cpu()
 
 #%% This section is for the plot functions ##############################################
 def plot_x(x, title='Input mixture'):

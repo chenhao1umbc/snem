@@ -22,7 +22,7 @@ xte = st_ft(x).reshape(1,1,200,200).abs().log().float()
 te_cuda = xte.cuda()
 for i in range(6):
     model = UNet(n_channels=1, n_classes=1).cuda()
-    model.load_state_dict(torch.load('../data/data_ss/'+fname[i]+'_unet20.pt'))
+    model.load_state_dict(torch.load('../data/data_ss/stage_1/'+fname[i]+'_unet20.pt'))
     model.eval()
 
     with torch.no_grad():
@@ -64,7 +64,7 @@ gt_stft = torch.rand(which_source.shape[0],200, 200, n_c, dtype=torch.complex64)
 for i in range(which_source.shape[0]):
     s = sources[which_source[i], n]
     gt_stft[i, ... , 0] = st_ft(s)
-    gt_stft[i, ... , 1] = st_ft(s*e**(1j*np.pi/12*(i+1))) # awgn(st_ft(s), snr=20)
+    gt_stft[i, ... , 1] = st_ft(s*np.exp(1j*np.pi/12*(i+1))) # awgn(st_ft(s), snr=20)
 
 init = awgn(s_stft[which_source], snr=10) #  gt_stft.abs().log()
 # init = torch.rand(2, 200, 200) -9.8
