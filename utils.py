@@ -362,7 +362,7 @@ def em10(init_stft, stft_mix, n_iter):
     n_f, n_t, n_c =  stft_mix.shape 
     I =  torch.ones(n_s, n_f, n_t, n_c).diag_embed().to(torch.complex64)
     eps = 1e-20  # no smaller than 1e-22
-    x = torch.tensor(stft_mix).unsqueeze(-1)  #shape of [n_s, n_f, n_t, n_c, 1]
+    x = stft_mix.unsqueeze(-1)  #shape of [n_s, n_f, n_t, n_c, 1]
     "Initialize spatial covariance matrix"
     Rj =  torch.ones(n_s, n_f, 1, n_c).diag_embed().to(torch.complex64) 
     vj = init_stft.clone().to(torch.complex64).exp()
@@ -389,7 +389,7 @@ def em10(init_stft, stft_mix, n_iter):
         "calc log P(cj|x), because cj equals cjh, epart=0"
         Wj0 = Rcj @ torch.linalg.inv(Rx)
         Rh = (I - Wj0)@Rcj # as Rcjh, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
-        logp = -Rh.det().log() - n_c*np.log(np.pi) # shape of [n_batch, n_s, n_f, n_t]
+        logp = -Rh.det().log().real - n_c*np.log(np.pi) # shape of [n_batch, n_s, n_f, n_t]
 
         "get covariance"
         Rcjh = cjh@cjh.permute(0,1,2,4,3).conj() + (I -  Wj) @ Rcj 
@@ -426,10 +426,10 @@ def loss_f(logp, x, cj, vj, Rj):
         logp, x, cj,  vj, Rj = logp.cuda(), x.cuda(), cj.cuda(), vj.cuda(), Rj.cuda()
 
     Rcj = (vj * Rj.permute(3,4,0,1,2)).permute(2,3,4,0,1) # shape as Rcjh
-    Rcj = (Rcj + Rcj.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
+    Rcj = (Rcj + Rcj.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
     "Compute mixture covariance"
     Rx = Rcj.sum(0)  #shape of [n_batch, n_f, n_t, n_c, n_c]
-    Rx = (Rx + Rx.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
+    Rx = (Rx + Rx.transpose(-1, -2).conj())/2  # make sure it is hermitian (symetrix conj)
 
     cj_, Rcj_ = x[None,...] - cj, Rx[None,...] - Rcj + eps # small number to avoid low rank
     "calc log P(x|cj)"
@@ -441,17 +441,17 @@ def loss_f(logp, x, cj, vj, Rj):
     log_part = e_part.squeeze_() + det_part + e_part_2.squeeze_() + det_part_2
     lp = log_part.real
 
-    # "Another way calc log P(cj|x) and log P(x)"
-    # "calc log P(cj|x), because cj equals cjh, epart=0"
-    # Wj = Rcj @ torch.linalg.inv(Rx)[:,None] 
-    # Rh = (I - Wj)@Rcj # as Rcjh, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
-    # p0 = -0.5*Rh.det().log() - klog2pi_2 # shape of [n_batch, n_s, n_f, n_t]
-    # "calc log P(x)"
-    # p1 = -0.5*Rx.det().log() - klog2pi_2
-    # p2 = -0.5* x.transpose(-1, -2) @ Rx.inverse() @x
-    # P = p1 + p2.squeeze_() + p0 # shape of [n_f, n_t]
+    "Another way calc log P(cj|x) and log P(x)"
+    "calc log P(cj|x), because cj equals cjh, epart=0"
+    Wj = Rcj @ torch.linalg.inv(Rx)
+    Rh = (I - Wj)@Rcj # as Rcjh, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
+    p0 = -Rh.det().log() - n_c*np.log(np.pi) # shape of [n_batch, n_s, n_f, n_t]
+    "calc log P(x)"
+    p1 = -Rx.det().log() - n_c*np.log(np.pi)
+    p2 = - x.transpose(-1, -2).conj() @ Rx.inverse() @x
+    P = p1 + p2.squeeze_() + p0 # shape of [n_f, n_t]
     # print('the diff between two ways', (P-log_part).abs().sum(), 'without diff', (P).abs().sum())
-
+    
     p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
     p[p==float('inf')] = 1e38  # roughly the max of float32
     loss = -(p*lp).sum()
