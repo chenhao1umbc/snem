@@ -206,7 +206,7 @@ def st_ft(x):
     return torch.tensor(output).to(torch.cfloat)
 
 #%% EM related functions ####################################################################
-def calc_likelihood(x, Rx):
+def log_likelihood(x, Rx):
     """Calculate the log likelihood function of mixture x
         p(x|Rx) = \Pi_{n,f} 1/det(pi*Rx) e^{-x^H Rx^{-1} x}
     Parameters
@@ -650,7 +650,7 @@ def train_NEM_plain(X, V, opts):
                 Rcjh = (Rcjh + Rcjh.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
 
                 # check likihood convergence 
-                likelihood.append(calc_likelihood(x, Rx).item())
+                likelihood.append(log_likelihood(x, Rx).item())
 
                 # the M-step
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
