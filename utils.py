@@ -44,7 +44,7 @@ def load_options(n_s=2, n_epochs=25, n_batch=32):
     opts['n_epochs'] = n_epochs 
     opts['lr'] = 0.01
     opts['n_batch'] = n_batch
-    opts['n_iter'] = 50 # EM iterations
+    opts['n_iter'] = 200 # EM iterations
     opts['d_gamma'] = 16 # gamma dimesion 32*32
     opts['n_s'] = n_s  # number of sources
     return opts
@@ -217,7 +217,7 @@ def log_likelihood(x, Rx):
         [the covariance matrix, shape of [n_f, n_t, n_c, n_c] or [n_f, n_t]]
     """
     "calculated the log likelihood"
-    p1 = -0.5*Rx.det().log() - klog2pi_2
+    p1 = -0.5*(Rx.det()+ 1e-20).log() - klog2pi_2
     Rx_1 = torch.linalg.inv(Rx)
     p2 = -0.5* x.transpose(-1, -2) @ Rx_1 @x
     P = p1 + p2.squeeze_()  # shape of [n_f, n_t]
@@ -247,7 +247,7 @@ def em_simple(init_stft, stft_mix, n_iter):
     n_c = 1 # number of channels
     cjh = init_stft.clone().to(torch.complex64).exp()
     x = torch.tensor(stft_mix).squeeze()
-    eps = 1e-28
+    eps = 1e-30
     # Rj =  (Rcj/(vj+eps)).sum(2)/n_t  # shape of [n_s, n_f]
     Rj =  torch.ones(n_s, n_f).to(torch.complex64)  # shape of [n_s, n_f]
     likelihood = torch.zeros(n_iter).to(torch.complex64)
@@ -293,7 +293,7 @@ def em_10paper(init_stft, stft_mix, n_iter):
     n_c = 1 # number of channels
     cjh = init_stft.clone().to(torch.complex64).exp()  #shape of [n_s, n_f, n_t]
     x = torch.tensor(stft_mix).squeeze()
-    eps = 1e-28
+    eps = 1e-30
     "Initialize spatial covariance matrix"
     Rj =  torch.ones(n_s, n_f).to(torch.complex64)  # shape of [n_s, n_f]
     Rcjh = Rj[..., None] * cjh.abs()**2
@@ -342,7 +342,7 @@ def em10(init_stft, stft_mix, n_iter):
     n_s = init_stft.shape[0]
     n_f, n_t, n_c =  stft_mix.shape 
     I =  torch.ones(n_s, n_f, n_t, n_c).diag_embed().to(torch.complex64)
-    eps = 1e-20  # no smaller than 1e-22
+    eps = 1e-30  # no smaller than 1e-38
     x = torch.tensor(stft_mix).unsqueeze(-1)  #shape of [n_s, n_f, n_t, n_c, 1]
     "Initialize spatial covariance matrix"
     Rj =  torch.ones(n_s, n_f, 1, n_c).diag_embed().to(torch.complex64) 
@@ -470,7 +470,7 @@ def train_NEM(X, V, model, opts):
     n_s, n_batch  = V.shape[1], opts['n_batch']
     n_i, n_f, n_t, n_c =  X.shape 
     I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed()
-    eps = 1e-30  # no smaller than 1e-45
+    eps = 1e-30  # no smaller than 1e-38
     tr = wrap(X, V, opts)  # tr is a data loader
 
     optimizer = optim.RAdam(
@@ -604,7 +604,7 @@ def train_NEM_plain(X, V, opts):
     n_s  = V.shape[1]
     n_i, n_f, n_t, n_c =  X.shape 
     I =  torch.ones(opts['n_batch'], n_s, n_f, n_t, n_c).diag_embed()
-    eps = 1e-20  # no smaller than 1e-45
+    eps = 1e-30  # no smaller than 1e-45
     tr = wrap(X, V, opts)  # tr is a data loader
     loss_train = []
     likelihood = []
@@ -720,7 +720,7 @@ def loss_func(Rcjh, vj, Rj, x, cjh):
 
     loss = logpx_z + logpz
 
-    return loss.sum(), Rx.detach().cpu(), Rcj.detach().cpu()
+    return logpz.sum(), Rx.detach().cpu(), Rcj.detach().cpu()
 
 
 def check_stop(loss):
