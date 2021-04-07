@@ -648,9 +648,6 @@ def train_NEM_plain(X, V, opts):
                 Rh = (I - Wj)@Rcj # as Rcjh, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
                 Rcjh = cjh@cjh.permute(0,1,2,3,5,4) + Rh
                 Rcjh = (Rcjh + Rcjh.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
-                "calc. log P(cj|x; theta_hat), using log to avoid inf problem" 
-                # R = (Rcj**-1 + (Rx-Rcj)**-1)**-1 = (I - Wj)Rcj, The det of a Hermitian matrix is real
-                logp = -0.5*Rh.det().log() - klog2pi_2 # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
                 likelihood.append(calc_likelihood(x, Rx).item())
@@ -662,7 +659,7 @@ def train_NEM_plain(X, V, opts):
                 # vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
                 vj = (Rj.inverse() @ Rcjh).diagonal(dim1=-2, dim2=-1).sum(-1)/n_c
                 "Back propagate to update the input of neural network"               
-                loss, Rx, Rcj = loss_func(logp, x, cjh, vj, Rj) # model param is fixed     
+                loss, Rx, Rcj = loss_func(Rcjh, vj, Rj) # model param is fixed     
                 optim_gamma.zero_grad()    # the neural network/ here only gamma step             
                 # loss.backward()
                 # print('\nmax gammaj grad before clip', gammaj.grad.abs().max().data)
@@ -689,57 +686,30 @@ def train_NEM_plain(X, V, opts):
     return cjh, vj, Rj 
 
 
-def loss_func(logp, x, cj, vj, Rj):
+def loss_func(Rcjh, vj, Rj):
     """[summary]
 
     Args:
-        logp ([real tensor]): [log likelyhood of P(cj|x; theta_old), shape of [n_batch, n_s, n_f, n_t,]]
-        x ([real tensor]): [mixture samples, shape of [n_batch, n_f, n_t, n_c, 1]]
-        cj ([real tensor]): [each source, shape of [n_batch, n_s, n_f, n_t, n_c, 1]]
+        logp ([real tensor]): [covariance, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]]
         vj ([real tensor]): [required gradient, similar to PSD of the source, shape of [n_batch, n_s, n_f, n_t ]]
         Rj ([real tensor]): [hidden covariance, shape of [n_batch, n_s, 1, 1, n_c, n_c]]
     Return:
-        loss = -1 * \sum_i,n,f \sum_j Q(theta, theta_hat)
+        loss = \sum_i,j,n,f tr{Rcjh@ Rcj^-1 } + log(|Rcj|)
     """
-    "calc log P(cj, x ; theta) = log P(cj ; theta) + log P(x|cj ; theta)"
-    eps = torch.eye(3)*1e-20
-    I =  torch.ones(x.shape[:-1]).diag_embed()
+
     if torch.cuda.is_available():
-        eps, I = torch.eye(3, device='cuda')*1e-20, I.cuda()
-        logp, x, cj,  vj, Rj = logp.cuda(), x.cuda(), cj.cuda(), vj.cuda(), Rj.cuda()
+        Rcjh, vj, Rj =  Rcjh.cuda(), vj.cuda(), Rj.cuda()
 
     Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
     Rcj = (Rcj + Rcj.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
     "Compute mixture covariance"
     Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
     Rx = (Rx + Rx.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
+    "Calc. -Q function value"
+    l = (Rcjh@Rcj.inverse()).diagonal(dim1=-2, dim2=-1).sum(-1) \
+        + (Rcj.det() + 1e-20).log()
 
-    cj_, Rcj_ = x[:,None] - cj, Rx[:,None] - Rcj + eps # small number to avoid low rank
-    "calc log P(x|cj)"
-    e_part = -0.5*cj_.transpose(-1, -2)@Rcj_.inverse()@cj_ 
-    det_part = -0.5*Rcj_.det().log() - klog2pi_2  # shape of [n_batch, n_s, n_f, n_t]
-    "calc log P(cj)"
-    e_part_2 = -0.5*cj.transpose(-1, -2)@Rcj.inverse()@cj  
-    det_part_2 = -0.5*Rcj.det().log() - klog2pi_2  # shape of [n_batch, n_s, n_f, n_t]
-    log_part = e_part.squeeze_() + det_part + e_part_2.squeeze_() + det_part_2
-
-    "Another way calc log P(cj|x) and log P(x)"
-    "calc log P(cj|x), because cj equals cjh, epart=0"
-    Wj = Rcj @ torch.linalg.inv(Rx)[:,None] 
-    Rh = (I - Wj)@Rcj # as Rcjh, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
-    p0 = -0.5*Rh.det().log() - klog2pi_2 # shape of [n_batch, n_s, n_f, n_t]
-    "calc log P(x)"
-    p1 = -0.5*Rx.det().log() - klog2pi_2
-    p2 = -0.5* x.transpose(-1, -2) @ Rx.inverse() @x
-    P = p1 + p2.squeeze_() + p0 # shape of [n_f, n_t]
-    print('the diff between two ways', (P-log_part).abs().sum(), 'without diff', (P).abs().sum())
-
-    p = logp.exp()  #using logp, instead of p, is because p could be very large number showing inf
-    p[p==float('inf')] = 1e38  # roughly the max of float32
-    loss = -(p*log_part).sum()
-    if loss.isnan():
-        error_happens
-    return loss, Rx.detach().cpu(), Rcj.detach().cpu()
+    return l.sum(), Rx.detach().cpu(), Rcj.detach().cpu()
 
 
 def check_stop(loss):
