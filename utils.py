@@ -659,7 +659,7 @@ def train_NEM_plain(X, V, opts):
                 # vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
                 vj = (Rj.inverse() @ Rcjh).diagonal(dim1=-2, dim2=-1).sum(-1)/n_c
                 "Back propagate to update the input of neural network"               
-                loss, Rx, Rcj = loss_func(Rcjh, vj, Rj) # model param is fixed     
+                loss, Rx, Rcj = loss_func(Rcjh, vj, Rj, x, cjh) # model param is fixed     
                 optim_gamma.zero_grad()    # the neural network/ here only gamma step             
                 # loss.backward()
                 # print('\nmax gammaj grad before clip', gammaj.grad.abs().max().data)
@@ -686,30 +686,41 @@ def train_NEM_plain(X, V, opts):
     return cjh, vj, Rj 
 
 
-def loss_func(Rcjh, vj, Rj):
+def loss_func(Rcjh, vj, Rj, x, cjh):
     """[summary]
 
     Args:
-        logp ([real tensor]): [covariance, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]]
+        Rcjh ([real tensor]): [covariance, shape of [n_batch, n_s, n_f, n_t, n_c, n_c]]
         vj ([real tensor]): [required gradient, similar to PSD of the source, shape of [n_batch, n_s, n_f, n_t ]]
         Rj ([real tensor]): [hidden covariance, shape of [n_batch, n_s, 1, 1, n_c, n_c]]
+        cjh [real tensor]): [component sources, shape of [n_batch, n_s, n_f, n_t, n_c, 1]]
+        x [real tensor]): [mixture data, shape of [n_batch, n_f, n_t, n_c, 1]]
     Return:
         loss = \sum_i,j,n,f tr{Rcjh@ Rcj^-1 } + log(|Rcj|)
     """
 
     if torch.cuda.is_available():
         Rcjh, vj, Rj =  Rcjh.cuda(), vj.cuda(), Rj.cuda()
+        x, cjh = x.cuda(), cjh.cuda()
 
     Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
     Rcj = (Rcj + Rcj.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
     "Compute mixture covariance"
     Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
     Rx = (Rx + Rx.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
-    "Calc. -Q function value"
-    l = (Rcjh@Rcj.inverse()).diagonal(dim1=-2, dim2=-1).sum(-1) \
-        + (Rcj.det() + 1e-20).log()
+    R = Rx[:, None] - Rcj
 
-    return l.sum(), Rx.detach().cpu(), Rcj.detach().cpu()
+    "Calc. -Q function value"
+    logpz = 0.5*(Rcjh@Rcj.inverse()).diagonal(dim1=-2, dim2=-1).sum(-1) \
+        + (Rcj.det() + 1e-20).log() + klog2pi_2
+    
+    temp = (x@x.transpose(-1, -2))[:, None] + Rcjh + - 2*x[:,None]@cjh.transpose(-1, -2)
+    logpx_z= 0.5*(temp@R.inverse()).diagonal(dim1=-2, dim2=-1).sum(-1) \
+        + (R.det() + 1e-20).log() + klog2pi_2
+
+    loss = logpx_z + logpz
+
+    return loss.sum(), Rx.detach().cpu(), Rcj.detach().cpu()
 
 
 def check_stop(loss):
