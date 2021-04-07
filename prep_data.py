@@ -41,7 +41,7 @@ J = vj.shape[-1] # how many sources, J =3
 max_db = 20
 n_channel = 3
 
-N = 20000
+N = 1
 x = torch.zeros(N, 50, 50, 3)
 cj = torch.zeros(N, 3, 50, 50, 3)
 for i in range(N):
@@ -51,7 +51,7 @@ for i in range(N):
     cjnf = torch.zeros( 50*50, n_channel, J ) # [FT, n_channel, n_sources]
     s = (torch.rand(n_channel, 50, 50, J)-0.5).sign()
     st_sq = steer_vec**2 # shape of [n_sources, n_channel]
-    cj_nf = (vj * (1/st_sq.t()[:, None, None, :]))**0.5 # shape of [n_channel, F, T, n_sources]
+    cj_nf = (awgn(vj,30).abs() * (1/st_sq.t()[:, None, None, :]))**0.5 # shape of [n_channel, F, T, n_sources]
     cjnf = cj_nf * s * steer_vec.t()[:, None, None, :] # shape as cjnf
     cjnf = 10**(power_db[None, None, :]/20) * cjnf
     cjnf = cjnf.permute(3,1,2,0)  # shape as [n_sources, F, T, n_channel]

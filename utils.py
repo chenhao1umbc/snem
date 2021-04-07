@@ -264,7 +264,7 @@ def em_simple(init_stft, stft_mix, n_iter):
         Wj = vj*Rj[..., None] / (Rx+eps) # shape of [n_s, n_f, n_t]
         "get STFT estimation"
         cjh = Wj * x  # shape of [n_s, n_f, n_t]
-        likelihood[i] = calc_likelihood(x, Rx)
+        likelihood[i] = log_likelihood(x, Rx)
 
     return cjh, likelihood
 
@@ -308,7 +308,7 @@ def em_10paper(init_stft, stft_mix, n_iter):
         Rj = 1/n_t* (Rcjh/(vj+eps)).sum(-1) # shape of [n_s, n_f]
         "Compute mixture covariance"
         Rx = (vj * Rj[..., None]).sum(0)  #shape of [n_f, n_t]
-        likelihood[i] = calc_likelihood(x, Rx)
+        likelihood[i] = log_likelihood(x, Rx)
 
         Rcj = vj * Rj[..., None] # shape of [n_s, n_f, n_t]
         "Calc. Wiener Filter"
@@ -365,7 +365,7 @@ def em10(init_stft, stft_mix, n_iter):
         "get STFT estimation, the conditional mean"
         cjh = Wj @ x  # shape of [n_s, n_f, n_t, n_c, 1]
         cjh_list.append(cjh.squeeze())
-        likelihood[i] = calc_likelihood(torch.tensor(stft_mix), Rx)
+        likelihood[i] = log_likelihood(torch.tensor(stft_mix), Rx)
 
         "get covariance"
         Rcjh = cjh@cjh.permute(0,1,2,4,3).conj() + (I -  Wj) @ Rcj 
@@ -531,7 +531,7 @@ def train_NEM(X, V, model, opts):
                 logp = -torch.linalg.det(np.pi*Rh).real.log() # cj=cjh, e^(0), shape of [n_batch, n_s, n_f, n_t,]
 
                 # check likihood convergence 
-                likelihood[i] = calc_likelihood(x, Rx)
+                likelihood[i] = log_likelihood(x, Rx)
 
                 # the M-step
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
