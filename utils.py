@@ -217,7 +217,8 @@ def log_likelihood(x, Rx):
         [the covariance matrix, shape of [n_f, n_t, n_c, n_c] or [n_f, n_t]]
     """
     "calculated the log likelihood"
-    p1 = -0.5*(Rx.det()+ 1e-20).log() - klog2pi_2
+    eps = 1e-30
+    p1 = -0.5*(Rx.det()+ eps).log() - klog2pi_2
     Rx_1 = torch.linalg.inv(Rx)
     p2 = -0.5* x.transpose(-1, -2) @ Rx_1 @x
     P = p1 + p2.squeeze_()  # shape of [n_f, n_t]
@@ -697,6 +698,8 @@ def loss_func(Rcjh, vj, Rj, x, cjh):
         x [real tensor]): [mixture data, shape of [n_batch, n_f, n_t, n_c, 1]]
     Return:
         loss = \sum_i,j,n,f tr{Rcjh@ Rcj^-1 } + log(|Rcj|)
+        use Q = E[log(z; theta) | x; theta_old] -- gradient to update Rj
+        not Q = E[log(x, z; theta) | x; theta_old]
     """
 
     if torch.cuda.is_available():
@@ -712,13 +715,12 @@ def loss_func(Rcjh, vj, Rj, x, cjh):
 
     "Calc. -Q function value"
     logpz = 0.5*(Rcjh@Rcj.inverse()).diagonal(dim1=-2, dim2=-1).sum(-1) \
-        + (Rcj.det() + 1e-20).log() + klog2pi_2
+        + 0.5*(Rcj.det() + 1e-20).log() + klog2pi_2
     
     temp = (x@x.transpose(-1, -2))[:, None] + Rcjh + - 2*x[:,None]@cjh.transpose(-1, -2)
     logpx_z= 0.5*(temp@R.inverse()).diagonal(dim1=-2, dim2=-1).sum(-1) \
-        + (R.det() + 1e-20).log() + klog2pi_2
-
-    loss = logpx_z + logpz
+        + 0.5*(R.det() + 1e-20).log() + klog2pi_2
+    _Q = logpx_z + logpz
 
     return logpz.sum(), Rx.detach().cpu(), Rcj.detach().cpu()
 
