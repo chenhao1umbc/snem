@@ -208,12 +208,13 @@ def st_ft(x):
 #%% EM related functions ####################################################################
 def log_likelihood(x, Rx):
     """Calculate the log likelihood function of mixture x
-        p(x|Rx) = \Pi_{n,f} 1/det(pi*Rx) e^{-x^H Rx^{-1} x}
+        p(x;0,Rx) = \Pi_{n,f} 1/det(pi*Rx) e^{-x^H Rx^{-1} x}
+        p(x;0,Rx) = \Pi_{n,f} 1/det(2*pi*Rx)**0.5 e^{-0.5*x^T Rx^{-1} x}
     Parameters
     ----------
-    x : [torch.complex]
+    x : [torch.float]
         [shape of [n_f, n_t, n_c, 1] or [n_f, n_t]]
-    Rx : [torch.complex]
+    Rx : [torch.float]
         [the covariance matrix, shape of [n_f, n_t, n_c, n_c] or [n_f, n_t]]
     """
     "calculated the log likelihood"
@@ -604,7 +605,6 @@ def train_NEM_plain(X, V, opts):
     """
     n_s  = V.shape[1]
     n_i, n_f, n_t, n_c =  X.shape 
-    I =  torch.ones(opts['n_batch'], n_s, n_f, n_t, n_c).diag_embed()
     eps = 1e-30  # no smaller than 1e-45
     tr = wrap(X, V, opts)  # tr is a data loader
     loss_train = []
@@ -624,6 +624,7 @@ def train_NEM_plain(X, V, opts):
     for epoch in range(opts['n_epochs']):    
         for i, (x, _) in enumerate(tr): # x has shape of [n_batch, n_f, n_t, n_c, 1]
             n_batch = x.shape[0]
+            I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed()
             "Initialize spatial covariance matrix"
             Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed()
             "vj is PSD, real tensor, |xnf|^2" #shape of [n_batch, n_s, n_f, n_t]
@@ -656,19 +657,18 @@ def train_NEM_plain(X, V, opts):
                 # the M-step
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
                 Rj = ((Rcjh/(vj.detach()+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
-                "update vj"
-                vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
+                # "update vj"
                 # vj = (Rj.inverse() @ Rcjh).diagonal(dim1=-2, dim2=-1).sum(-1)/n_c
-                "Back propagate to update the input of neural network"               
-                loss, Rx, Rcj = loss_func(Rcjh, vj, Rj, x, cjh) # model param is fixed     
-                optim_gamma.zero_grad()    # the neural network/ here only gamma step             
-                loss.backward()
-                print('\nmax gammaj grad before clip', gammaj.grad.abs().max().data)
-                # torch.nn.utils.clip_grad_norm_([gammaj], max_norm=500)
-                optim_gamma.step()    
-                loss_train.append(loss.data.item())
-                torch.cuda.empty_cache()
-            if i%50 == 0: 
+            "Back propagate to update the input of neural network"          
+            loss, Rx, Rcj = loss_func(Rcjh, vj, Rj, x, cjh) # model param is fixed     
+            optim_gamma.zero_grad()    # the neural network/ here only gamma step             
+            loss.backward()
+            # print('\nmax gammaj grad before clip', gammaj.grad.abs().max().data)
+            # torch.nn.utils.clip_grad_norm_([gammaj], max_norm=500)
+            optim_gamma.step()    
+            loss_train.append(loss.data.item())
+            torch.cuda.empty_cache()
+            if i%15 == 0: 
                 print(f'Current iter is {i} in epoch {epoch}')
                 # print('max gamma, min gamma, max vj, max |gamma.grad|' ,\
                     # gammaj.max().data, gammaj.min().data, vj.max().data, gammaj.grad.abs().max())
