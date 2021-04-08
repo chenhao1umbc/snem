@@ -29,7 +29,7 @@ torch.backends.cudnn.benchmark = False
 klog2pi_2 = 2.756815  # 3*np.log(np.pi*2)*0.5
 
 #%%
-def load_options(n_s=2, n_epochs=25, n_batch=32):
+def load_options(n_s=2, n_epochs=25, n_batch=32, EM_iter=5):
     """[set all the parameters]
 
     Args:
@@ -44,7 +44,7 @@ def load_options(n_s=2, n_epochs=25, n_batch=32):
     opts['n_epochs'] = n_epochs 
     opts['lr'] = 0.01
     opts['n_batch'] = n_batch
-    opts['n_iter'] = 200 # EM iterations
+    opts['n_iter'] = EM_iter # EM iterations
     opts['d_gamma'] = 16 # gamma dimesion 32*32
     opts['n_s'] = n_s  # number of sources
     return opts
@@ -657,13 +657,13 @@ def train_NEM_plain(X, V, opts):
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
                 Rj = ((Rcjh/(vj.detach()+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
                 "update vj"
-                # vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
-                vj = (Rj.inverse() @ Rcjh).diagonal(dim1=-2, dim2=-1).sum(-1)/n_c
+                vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
+                # vj = (Rj.inverse() @ Rcjh).diagonal(dim1=-2, dim2=-1).sum(-1)/n_c
                 "Back propagate to update the input of neural network"               
                 loss, Rx, Rcj = loss_func(Rcjh, vj, Rj, x, cjh) # model param is fixed     
                 optim_gamma.zero_grad()    # the neural network/ here only gamma step             
-                # loss.backward()
-                # print('\nmax gammaj grad before clip', gammaj.grad.abs().max().data)
+                loss.backward()
+                print('\nmax gammaj grad before clip', gammaj.grad.abs().max().data)
                 # torch.nn.utils.clip_grad_norm_([gammaj], max_norm=500)
                 optim_gamma.step()    
                 loss_train.append(loss.data.item())
