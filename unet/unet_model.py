@@ -101,7 +101,7 @@ class UNetHalf(nn.Module):
         x = self.up4(x)  # output has W=256, H=256
         x = self.reshape(x)
         out = self.outc(x)
-        return out
+        return out[...,3:-3, 3:-3]  #when gammaj is 7, output size is 56
 
 
 

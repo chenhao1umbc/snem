@@ -45,7 +45,7 @@ def load_options(n_s=2, n_epochs=25, n_batch=32, EM_iter=5):
     opts['lr'] = 0.01
     opts['n_batch'] = n_batch
     opts['n_iter'] = EM_iter # EM iterations
-    opts['d_gamma'] = 16 # gamma dimesion 32*32
+    opts['d_gamma'] = 16 # gamma dimesion 16*16 to 200*200
     opts['n_s'] = n_s  # number of sources
     return opts
 
@@ -494,13 +494,14 @@ def train_NEM(X, V, model, opts):
                      opts['d_gamma']).requires_grad_()
             likelihood = torch.zeros(opts['n_iter'])
             optim_gamma = torch.optim.SGD([gammaj], lr= opts['lr'])
+            model.eval()
             for param in model.parameters():
                 param.requires_grad = False
 
             "Initialize spatial covariance matrix"
             Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed()
             "vj is PSD, real tensor, |xnf|^2"#shape of [n_batch, n_s, n_f, n_t]
-            vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp()
+            vj = model(gammaj).cpu().detach()
             Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
             "Compute mixture covariance"
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
