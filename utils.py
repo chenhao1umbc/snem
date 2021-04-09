@@ -19,6 +19,7 @@ from torch.utils.tensorboard import SummaryWriter
 plt.rcParams['figure.dpi'] = 100
 
 from unet.unet_model import UNetHalf
+from unet.unet_model import UNet
 import torch_optimizer as optim
 
 "make the result reproducible"
@@ -433,8 +434,10 @@ def load_data(data='toy1'):
         return x, v
 
     elif data == 'toy2':
-        #TODO
-        pass
+        x = torch.load('./data/x_toy2.pt')  # 20k samples, shape of [i, f, t, channel]
+        v = (x.abs()**2).sum(-1).unsqueeze(1)
+        v = torch.cat(3*[v], 1)
+        return x, v
 
     else:
         print('no data found')
@@ -444,7 +447,8 @@ def load_data(data='toy1'):
 def init_neural_network(opts):
     m = {}
     for i in range(opts['n_s']):
-        model = UNetHalf(n_channels=1, n_classes=1)
+        # model = UNetHalf(n_channels=1, n_classes=1)
+        model = UNet(n_channels=1, n_classes=1)
         if torch.cuda.is_available(): model = model.cuda()
         m[i] = model
     return m
@@ -478,12 +482,14 @@ def train_NEM(X, V, models, opts):
     tr = wrap(X, V, opts)  # tr is a data loader
     optimizers = {}
     for j in range(n_s):
-        optimizers[j] = optim.RAdam(
-                    models[j].parameters(),
-                    lr= opts['lr'],
-                    betas=(0.9, 0.999),
-                    eps=1e-8,
-                    weight_decay=0)
+        # optimizers[j] = optim.RAdam(
+        #             models[j].parameters(),
+        #             lr= opts['lr'],
+        #             betas=(0.9, 0.999),
+        #             eps=1e-8,
+        #             weight_decay=0)
+        optimizers[j] = torch.optim.SGD(models[j].parameters(), lr= opts['lr'])
+
     loss_train = []
     loss_cv = []
 
@@ -492,11 +498,13 @@ def train_NEM(X, V, models, opts):
             n_batch = x.shape[0]
             I =  torch.ones(n_batch, n_s, n_f, n_t, n_c).diag_embed()
             if torch.cuda.is_available(): 
-                gammaj = torch.ones(n_batch, n_s, opts['d_gamma'],\
-                     opts['d_gamma']).cuda().requires_grad_()
+                # gammaj = torch.rand(n_batch, n_s, opts['d_gamma'],\
+                #      opts['d_gamma']).cuda().requires_grad_()
+                gammaj = (v/v.norm()).cuda().requires_grad_()
             else:
-                gammaj = torch.ones(n_batch, n_s, opts['d_gamma'],\
-                     opts['d_gamma']).requires_grad_()
+                # gammaj = torch.rand(n_batch, n_s, opts['d_gamma'],\
+                #      opts['d_gamma']).requires_grad_()
+                gammaj = (v/v.norm()).requires_grad_()
             likelihood = torch.zeros(opts['n_iter'])
             optim_gamma = torch.optim.SGD([gammaj], lr= opts['lr'])
             for j in range(n_s):
@@ -533,7 +541,7 @@ def train_NEM(X, V, models, opts):
                 Rcjh = (Rcjh + Rcjh.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
 
                 # check likihood convergence 
-                likelihood[i] = log_likelihood(x, Rx)
+                likelihood[ii] = log_likelihood(x, Rx)
 
                 # the M-step
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
@@ -586,7 +594,7 @@ def train_NEM(X, V, models, opts):
         "if loss_cv consecutively going up for 5 epochs --> stop"
         if check_stop(loss_cv):
             break
-    return cjh, vj, Rj, model
+    return cjh, vj, Rj, models
 
 
 
@@ -702,12 +710,12 @@ def loss_func(Rcjh, vj, Rj, x, cjh):
         use Q = E[log(z; theta) | x; theta_old] -- gradient to update Rj
         not Q = E[log(x, z; theta) | x; theta_old]
     """
-
+    eps = 1e-30
     if torch.cuda.is_available():
         Rcjh, vj, Rj =  Rcjh.cuda(), vj.cuda(), Rj.cuda()
         x, cjh = x.cuda(), cjh.cuda()
 
-    Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
+    Rcj = ((vj+eps) * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape of [n_batch, n_s, n_f, n_t, n_c, n_c]
     Rcj = (Rcj + Rcj.transpose(-1, -2))/2  # make sure it is hermitian (symetrix conj)
     "Compute mixture covariance"
     Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
