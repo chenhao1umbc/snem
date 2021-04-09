@@ -668,15 +668,16 @@ def train_NEM_plain(X, V, opts):
                 Rj = ((Rcjh/(vj.detach()+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
                 # "update vj"
                 # vj = (Rj.inverse() @ Rcjh).diagonal(dim1=-2, dim2=-1).sum(-1)/n_c
-            "Back propagate to update the input of neural network"          
-            loss, Rx, Rcj = loss_func(Rcjh, vj, Rj, x, cjh) # model param is fixed     
-            optim_gamma.zero_grad()    # the neural network/ here only gamma step             
-            loss.backward()
-            # print('\nmax gammaj grad before clip', gammaj.grad.abs().max().data)
-            # torch.nn.utils.clip_grad_norm_([gammaj], max_norm=500)
-            optim_gamma.step()    
-            loss_train.append(loss.data.item())
-            torch.cuda.empty_cache()
+                vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
+                "Back propagate to update the input of neural network"          
+                loss, Rx, Rcj = loss_func(Rcjh, vj, Rj, x, cjh) # model param is fixed     
+                optim_gamma.zero_grad()    # the neural network/ here only gamma step             
+                loss.backward()
+                # print('\nmax gammaj grad before clip', gammaj.grad.abs().max().data)
+                # torch.nn.utils.clip_grad_norm_([gammaj], max_norm=500)
+                optim_gamma.step()    
+                loss_train.append(loss.data.item())
+                torch.cuda.empty_cache()
             if i%15 == 0: 
                 print(f'Current iter is {i} in epoch {epoch}')
                 # print('max gamma, min gamma, max vj, max |gamma.grad|' ,\
