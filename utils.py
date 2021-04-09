@@ -444,7 +444,7 @@ def load_data(data='toy1'):
 def init_neural_network(opts):
     m = {}
     for i in range(opts['n_s']):
-        model = UNetHalf(n_channels=opts['n_s'], n_classes=opts['n_s'])
+        model = UNetHalf(n_channels=1, n_classes=1)
         if torch.cuda.is_available(): model = model.cuda()
         m[i] = model
     return m
@@ -476,8 +476,10 @@ def train_NEM(X, V, models, opts):
     n_i, n_f, n_t, n_c =  X.shape 
     eps = 1e-30  # no smaller than 1e-38
     tr = wrap(X, V, opts)  # tr is a data loader
-    optimizer = optim.RAdam(
-                    model.parameters(),
+    optimizers = {}
+    for j in range(n_s):
+        optimizers[j] = optim.RAdam(
+                    models[j].parameters(),
                     lr= opts['lr'],
                     betas=(0.9, 0.999),
                     eps=1e-8,
@@ -507,7 +509,7 @@ def train_NEM(X, V, models, opts):
             "vj is PSD, real tensor, |xnf|^2"#shape of [n_batch, n_s, n_f, n_t]
             vj = torch.rand(n_batch, n_s, n_f, n_t)
             for j in range(n_s):
-                vj[:, j] = models[j](gammaj[:, j]).cpu().detach().exp()
+                vj[:, j] = models[j](gammaj[:, j][:,None]).cpu().detach().exp().squeeze()
             Rcj = ((vj+eps) * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
             "Compute mixture covariance"
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
@@ -539,7 +541,7 @@ def train_NEM(X, V, models, opts):
                 "Back propagate to update the input of neural network"
                 vj = torch.rand(n_batch, n_s, n_f, n_t)
                 for j in range(n_s):
-                    vj[:, j] = models[j](gammaj[:, j]).exp() #shape of [n_batch, n_s, n_f, n_t ]
+                    vj[:, j] = models[j](gammaj[:, j][:,None]).exp().squeeze() #shape of [n_batch, n_s, n_f, n_t ]
                 loss, Rx, Rcj = loss_func(Rcjh, vj, Rj, x, cjh) # model param is fixed
                 loss_train.append(loss.data.item())
                 optim_gamma.zero_grad()                
@@ -550,15 +552,23 @@ def train_NEM(X, V, models, opts):
             #%% the neural network step
             gammaj.requires_grad_(False)
             for j in range(n_s):
+                vj = vj.detach()
                 for param in models[j].parameters():
                     param.requires_grad = True
+                if j == 0: jp = [1, 2]
+                if j == 1: jp = [0, 2]
+                if j == 2: jp = [0, 1]
+                for jj in jp: # only update one model
+                    for param in models[jj].parameters():
+                        param.requires_grad = False
+                
                 models[j].train()
-                vj = models[j](gammaj).exp()            
+                vj[:, j] = models[j](gammaj[:, j][:,None]).exp().squeeze()          
                 loss, *_ = loss_func(Rcjh, vj, Rj, x, cjh) # gamma is fixed    
                 loss_cv.append(loss.data.item())      
-                optimizer.zero_grad()   
+                optimizers[j].zero_grad()   
                 loss.backward()
-                optimizer.step()
+                optimizers[j].step()
                 torch.cuda.empty_cache()
             if i%50 == 0: print(f'Current iter is {i} in epoch {epoch}')
 
