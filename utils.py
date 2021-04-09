@@ -501,7 +501,7 @@ def train_NEM(X, V, model, opts):
             "Initialize spatial covariance matrix"
             Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed()
             "vj is PSD, real tensor, |xnf|^2"#shape of [n_batch, n_s, n_f, n_t]
-            vj = model(gammaj).cpu().detach()
+            vj = model(gammaj).cpu().detach().exp()
             Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
             "Compute mixture covariance"
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
@@ -529,13 +529,13 @@ def train_NEM(X, V, model, opts):
 
                 # the M-step
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
-                Rj = ((Rcjh/(vj.detach()+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
+                Rj = ((Rcjh/(vj.detach().cpu()+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
                 "Back propagate to update the input of neural network"
                 vj = model(gammaj).exp() #shape of [n_batch, n_s, n_f, n_t ]
                 loss, Rx, Rcj = loss_func(Rcjh, vj, Rj, x, cjh) # model param is fixed
                 loss_train.append(loss.data.item())
                 optim_gamma.zero_grad()                
-                loss.back()
+                loss.backward()
                 optim_gamma.step()
                 torch.cuda.empty_cache()        
 
@@ -544,7 +544,7 @@ def train_NEM(X, V, model, opts):
             for param in model.parameters():
                 param.requires_grad = True
             model.train()
-            vj = model(gammaj)           
+            vj = model(gammaj).exp()            
             loss, *_ = loss_func(Rcjh, x, cjh, vj, Rj) # gamma is fixed    
             loss_cv.append(loss.data.item())      
             optimizer.zero_grad()   
