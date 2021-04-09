@@ -502,7 +502,7 @@ def train_NEM(X, V, model, opts):
             Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed()
             "vj is PSD, real tensor, |xnf|^2"#shape of [n_batch, n_s, n_f, n_t]
             vj = model(gammaj).cpu().detach().exp()
-            Rcj = (vj * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
+            Rcj = ((vj+eps) * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
             "Compute mixture covariance"
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
             Rx = (Rx + Rx.transpose(-1, -2))/2  # make sure it is symetrix
@@ -545,7 +545,7 @@ def train_NEM(X, V, model, opts):
                 param.requires_grad = True
             model.train()
             vj = model(gammaj).exp()            
-            loss, *_ = loss_func(Rcjh, x, cjh, vj, Rj) # gamma is fixed    
+            loss, *_ = loss_func(Rcjh, vj, Rj, x, cjh) # gamma is fixed    
             loss_cv.append(loss.data.item())      
             optimizer.zero_grad()   
             loss.backward()
