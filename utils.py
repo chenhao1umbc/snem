@@ -442,12 +442,15 @@ def load_data(data='toy1'):
 
 
 def init_neural_network(opts):
-    model = UNetHalf(n_channels=opts['n_s'], n_classes=opts['n_s'])
-    if torch.cuda.is_available(): model = model.cuda()
-    return model
+    m = {}
+    for i in range(opts['n_s']):
+        model = UNetHalf(n_channels=opts['n_s'], n_classes=opts['n_s'])
+        if torch.cuda.is_available(): model = model.cuda()
+        m[i] = model
+    return m
 
 
-def train_NEM(X, V, model, opts):
+def train_NEM(X, V, models, opts):
     """This function is the main body of the training algorithm of NeuralEM for Source Separation
 
     Args:
@@ -494,14 +497,17 @@ def train_NEM(X, V, model, opts):
                      opts['d_gamma']).requires_grad_()
             likelihood = torch.zeros(opts['n_iter'])
             optim_gamma = torch.optim.SGD([gammaj], lr= opts['lr'])
-            model.eval()
-            for param in model.parameters():
-                param.requires_grad = False
+            for j in range(n_s):
+                models[j].eval()
+                for param in models[j].parameters():
+                    param.requires_grad = False
 
             "Initialize spatial covariance matrix"
             Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed()
             "vj is PSD, real tensor, |xnf|^2"#shape of [n_batch, n_s, n_f, n_t]
-            vj = model(gammaj).cpu().detach().exp()
+            vj = torch.rand(n_batch, n_s, n_f, n_t)
+            for j in range(n_s):
+                vj[:, j] = models[j](gammaj[:, j]).cpu().detach().exp()
             Rcj = ((vj+eps) * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
             "Compute mixture covariance"
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
@@ -531,7 +537,9 @@ def train_NEM(X, V, model, opts):
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
                 Rj = ((Rcjh/(vj.detach().cpu()+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
                 "Back propagate to update the input of neural network"
-                vj = model(gammaj).exp() #shape of [n_batch, n_s, n_f, n_t ]
+                vj = torch.rand(n_batch, n_s, n_f, n_t)
+                for j in range(n_s):
+                    vj[:, j] = models[j](gammaj[:, j]).exp() #shape of [n_batch, n_s, n_f, n_t ]
                 loss, Rx, Rcj = loss_func(Rcjh, vj, Rj, x, cjh) # model param is fixed
                 loss_train.append(loss.data.item())
                 optim_gamma.zero_grad()                
@@ -541,16 +549,17 @@ def train_NEM(X, V, model, opts):
 
             #%% the neural network step
             gammaj.requires_grad_(False)
-            for param in model.parameters():
-                param.requires_grad = True
-            model.train()
-            vj = model(gammaj).exp()            
-            loss, *_ = loss_func(Rcjh, vj, Rj, x, cjh) # gamma is fixed    
-            loss_cv.append(loss.data.item())      
-            optimizer.zero_grad()   
-            loss.backward()
-            optimizer.step()
-            torch.cuda.empty_cache()
+            for j in range(n_s):
+                for param in models[j].parameters():
+                    param.requires_grad = True
+                models[j].train()
+                vj = models[j](gammaj).exp()            
+                loss, *_ = loss_func(Rcjh, vj, Rj, x, cjh) # gamma is fixed    
+                loss_cv.append(loss.data.item())      
+                optimizer.zero_grad()   
+                loss.backward()
+                optimizer.step()
+                torch.cuda.empty_cache()
             if i%50 == 0: print(f'Current iter is {i} in epoch {epoch}')
 
         if epoch%1 ==0:
