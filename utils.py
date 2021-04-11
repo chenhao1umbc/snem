@@ -621,7 +621,7 @@ def train_NEM_plain(X, V, opts):
 
     """
     n_s  = V.shape[1]
-    n_i, n_f, n_t, n_c =  X.shape 
+    n_i, n_f, n_t, n_c = X.shape 
     eps = 1e-30  # no smaller than 1e-45
     tr = wrap(X, V, opts)  # tr is a data loader
     loss_train = []
@@ -637,7 +637,8 @@ def train_NEM_plain(X, V, opts):
             "Initialize spatial covariance matrix"
             Rj =  torch.ones(n_batch, n_s, 1, 1, n_c).diag_embed()
             "vj is PSD, real tensor, |xnf|^2" #shape of [n_batch, n_s, n_f, n_t]
-            vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
+            # vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
+            vj = torch.tensor(sio.loadmat('/home/chenhao1/Matlab/nem_ss/vj.mat')['vj'])[None,:]
             Rcj = (vj.detach() * Rj.permute(4,5,0,1,2,3)).permute(2,3,4,5,0,1) # shape as Rcjh
             "Compute mixture covariance"
             Rx = Rcj.sum(1)  #shape of [n_batch, n_f, n_t, n_c, n_c]
@@ -667,15 +668,15 @@ def train_NEM_plain(X, V, opts):
                 "cal spatial covariance matrix" # Rj shape of [n_batch, n_s, 1, 1, n_c, n_c]                
                 Rj = ((Rcjh/(vj.detach()+eps)[...,None, None]).sum((2,3))/n_t/n_f)[:,:,None,None]
                 # "update vj"
-                # vj = (Rj.inverse() @ Rcjh).diagonal(dim1=-2, dim2=-1).sum(-1)/n_c
-                vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
+                vj = (Rj.inverse() @ Rcjh).diagonal(dim1=-2, dim2=-1).sum(-1)/n_c
+                # vj = torch.cat(n_batch *[gammaj[None,...]], 0).exp() + eps
                 "Back propagate to update the input of neural network"          
                 loss, Rx, Rcj = loss_func(Rcjh, vj, Rj, x, cjh) # model param is fixed     
-                optim_gamma.zero_grad()    # the neural network/ here only gamma step             
-                loss.backward()
-                # print('\nmax gammaj grad before clip', gammaj.grad.abs().max().data)
-                # torch.nn.utils.clip_grad_norm_([gammaj], max_norm=500)
-                optim_gamma.step()    
+                # optim_gamma.zero_grad()    # the neural network/ here only gamma step             
+                # loss.backward()
+                # # print('\nmax gammaj grad before clip', gammaj.grad.abs().max().data)
+                # # torch.nn.utils.clip_grad_norm_([gammaj], max_norm=500)
+                # optim_gamma.step()    
                 loss_train.append(loss.data.item())
                 torch.cuda.empty_cache()
             if i%15 == 0: 
@@ -725,7 +726,7 @@ def loss_func(Rcjh, vj, Rj, x, cjh):
 
     "Calc. -Q function value"
     logpz = 0.5*(Rcjh@Rcj.inverse()).diagonal(dim1=-2, dim2=-1).sum(-1) \
-        + 0.5*(Rcj.det() + 1e-30).log() + klog2pi_2
+        + 0.5*(Rcj.det() + eps).log() + klog2pi_2
     
     # temp = (x@x.transpose(-1, -2))[:, None] + Rcjh + - 2*x[:,None]@cjh.transpose(-1, -2)
     # logpx_z= 0.5*(temp@R.inverse()).diagonal(dim1=-2, dim2=-1).sum(-1) \
@@ -749,7 +750,7 @@ def wrap(x, v, opts):
     """
     x = x.unsqueeze_(-1)
     data = Data.TensorDataset(x, v)
-    data = Data.DataLoader(data, batch_size=opts['n_batch'], shuffle=True)
+    data = Data.DataLoader(data, batch_size=opts['n_batch'], shuffle=False)
     return data
 
 
