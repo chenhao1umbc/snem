@@ -11,7 +11,7 @@ from torch import nn
 import torch.nn.functional as Func
 import torch.utils.data as Data
 from unet.unet_model import UNetHalf
-# import torch_optimizer as optim
+import torch_optimizer as optim
 
 # from torch.utils.tensorboard import SummaryWriter
 plt.rcParams['figure.dpi'] = 100
