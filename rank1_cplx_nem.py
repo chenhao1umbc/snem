@@ -26,7 +26,7 @@ torch.backends.cudnn.benchmark = False
 print('done loading')
 
 
-# %% EM algorithm for one complex sample
+#  EM algorithm for one complex sample
 def calc_ll_cpx2(x, vhat, Rj, Rb):
     """ Rj shape of [J, M, M]
         vhat shape of [N, F, J]
@@ -55,12 +55,12 @@ c = c.permute(1,2,3,0) # shape of [N, F, J, M]
 d = sio.loadmat('data/v.mat')
 vj = torch.tensor(d['v'])
 pwr = torch.ones(1, 3)  # signal powers
-max_iter = 200
+max_iter = 101
 
 "initial"
 vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
-Rb = torch.eye(M).to(torch.cdouble)
-Hhat = torch.randn(M, J).to(torch.cdouble)
+Rb = torch.eye(M).to(torch.cdouble)*100
+Hhat = torch.randn(M, J).to(torch.cdouble)/2**0.5
 Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
 Rj = torch.zeros(J, M, M).to(torch.cdouble)
 ll_traj = []
