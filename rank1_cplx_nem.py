@@ -12,7 +12,8 @@ import torch
 from torch import nn
 import torch.nn.functional as Func
 import torch.utils.data as Data
-# from unet.unet_model import UNet
+from unet.unet_model import UNetHalf
+# import torch_optimizer as optim
 
 # from torch.utils.tensorboard import SummaryWriter
 plt.rcParams['figure.dpi'] = 100
@@ -26,7 +27,11 @@ torch.backends.cudnn.benchmark = False
 print('done loading')
 
 
-#  EM algorithm for one complex sample
+#%% Neural EM algorithm
+def loss_func(x, s, vhat, Rsshat, Rb):
+    pass
+    return 0
+
 def calc_ll_cpx2(x, vhat, Rj, Rb):
     """ Rj shape of [J, M, M]
         vhat shape of [N, F, J]
@@ -58,20 +63,21 @@ def mydet(x):
         res = res * ll[..., i]**2
     return res
 
-"reproduce the Matlab result"
-d = sio.loadmat('data/x1M3_cpx.mat')
-x, c = torch.tensor(d['x'], dtype=torch.cdouble), \
-    torch.tensor(d['c'], dtype=torch.cdouble)
-M, N, F, J = c.shape
-NF = N*F
-x = x.permute(1,2,0)  # shape of [N, F, M]
-c = c.permute(1,2,3,0) # shape of [N, F, J, M]
 
-"loade data"
-d = sio.loadmat('data/v.mat')
-vj = torch.tensor(d['v'])
-pwr = torch.ones(1, 3)  # signal powers
-max_iter = 401
+data = h5py.File('data/x5000M5.mat', 'r')
+x = torch.tensor(data['x'], dtype=torch.float) # [sample, N, F, channel]
+xtr, xcv, xte = x[:4000], x[4000:4500], x[4500:]
+gamma = torch.rand(5000, 4, 4)
+M, N, F, J = 3, 150, 150, 3
+NF = N*F
+
+
+
+# for epoch in range(1):    
+#     for i, (gamma, v) in enumerate(tr): # gamma [n_batch, n_f, n_t]
+#         pass
+
+
 
 "initial"
 # vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
@@ -83,7 +89,7 @@ Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
 Rj = torch.zeros(J, M, M).to(torch.cdouble)
 ll_traj = []
 
-for i in range(max_iter):
+for i in range(100):
     "E-step"
     Rs = vhat.diag_embed()
     Rx = Hhat @ Rs @ Hhat.t().conj() + Rb
@@ -108,28 +114,34 @@ for i in range(max_iter):
         Rj[j] = Hhat[:, j][..., None] @ Hhat[:, j][..., None].t().conj()
     ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
     
-    if i%50 == 0:
-        plt.figure(100)
-        plt.plot(ll_traj,'o-')
-        plt.show()
-        
-"display results"
-for j in range(J):
-    plt.figure(j)
-    plt.subplot(1,2,1)
-    plt.imshow(vhat[:,:,j].real)
-    plt.colorbar()
-    
-    plt.subplot(1,2,2)
-    plt.imshow(vj[:,:,j])
-    plt.title('Ground-truth')
-    plt.colorbar()
-    plt.show()
 
 
-#%% Neural EM algorithm
 
-# data = h5py.File('data/x5000M5.mat', 'r')
-# x = torch.tensor(data['x'], dtype=torch.float) # [sample, N, F, channel]
-# xtr, xcv, xte = x[:4000], x[4000:4500], x[4500:]
+
+
+        # to do
+        # x = gamma[:,None].cuda().requires_grad_()
+        # v = v[:,None].cuda()
+
+        # "update gamma"
+        # optim_gamma = torch.optim.SGD([x], lr= opts['lr'])  # every iter the gamma grad is reset
+        # out = model(x.diag_embed())
+        # loss = ((out - v)**2).sum()/opts['n_batch']
+        # optim_gamma.zero_grad()   
+        # loss.backward()
+        # torch.nn.utils.clip_grad_norm_([x], max_norm=500)
+        # optim_gamma.step()
+        # torch.cuda.empty_cache()
+
+        # "update model"
+        # for param in model.parameters():
+        #     param.requires_grad_(True)
+        # x.requires_grad_(False)
+        # out = model(x.diag_embed())
+        # loss = ((out - v)**2).sum()/opts['n_batch']
+        # optimizer.zero_grad()   
+        # loss.backward()
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=500)
+        # optimizer.step()
+        # torch.cuda.empty_cache()
 
