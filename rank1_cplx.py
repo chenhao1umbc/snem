@@ -38,9 +38,25 @@ def calc_ll_cpx2(x, vhat, Rj, Rb):
     Rcj = vhat.reshape(N*F, J) @ Rj.reshape(J, M*M)
     Rcj = Rcj.reshape(N, F, M, M)
     Rx = Rcj + Rb 
-    Rx = (Rx + Rx.transpose(-1, -2).conj())/2
-    l = -(np.pi*Rx.det()).log() - (x[..., None, :]@Rx.inverse()@x[..., None]).squeeze()
+    # l = -(np.pi*Rx.det()).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
+    l = -(np.pi*mydet(Rx)).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
     return l.sum()
+
+def mydet(x):
+    """calc determinant of tensor for the last 2 dimensions,
+    suppose x is postive definite hermitian matrix
+
+    Args:
+        x ([pytorch tensor]): [shape of [..., N, N]]
+    """
+    s = x.shape[:-2]
+    N = x.shape[-1]
+    l = torch.linalg.cholesky(x)
+    ll = l.diagonal(dim1=-1, dim2=-2)
+    res = torch.ones(s).to(x.device)
+    for i in range(N):
+        res = res * ll[..., i]**2
+    return res
 
 "reproduce the Matlab result"
 d = sio.loadmat('data/x1M3_cpx.mat')
@@ -58,9 +74,11 @@ pwr = torch.ones(1, 3)  # signal powers
 max_iter = 401
 
 "initial"
-vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
+# vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
+# Hhat = torch.randn(M, J).to(torch.cdouble)
+d = sio.loadmat('data/vhat_Hhat.mat')
+vhat, Hhat = torch.tensor(d['vhat']).to(torch.cdouble), torch.tensor(d['Hhat'])
 Rb = torch.eye(M).to(torch.cdouble)*100
-Hhat = torch.randn(M, J).to(torch.cdouble)
 Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
 Rj = torch.zeros(J, M, M).to(torch.cdouble)
 ll_traj = []
