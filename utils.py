@@ -26,9 +26,27 @@ print('done loading')
 
 
 #%% Neural EM algorithm
-def loss_func(x, s, vhat, Rsshat, Rb):
-    pass
-    return 0
+def loss_func(vhat, Rsshatnf):
+    """This function is only the Q1 part, which is related to vj
+        Q= Q1 + Q2, Q1 = \sum_nf -log(|Rs(n,f)|) - tr{Rsshat_old(n,f)Rs^-1(n,f))}
+        loss = -Q1
+
+    Args:
+        vhat ([tensor]): [shape of [batch, N, F, J]]
+        Rsshatnf ([tensor]): [shape of [batch, N, F, J, J]]
+
+    Returns:
+        [scalar]: [-Q1]
+    """
+    J = vhat.shape[-1]
+    shape = vhat.shape[:-1]
+    det_Rs = torch.ones(shape).to(vhat.device)
+    for i in range(J):
+        det_Rs = det_Rs * vhat[..., i]**2
+    p1 = det_Rs.log().sum() 
+    p2 = Rsshatnf.diagonal(dim1=-1, dim2=-2)/vhat
+    loss = p1 + p2
+    return loss
 
 def calc_ll_cpx2(x, vhat, Rj, Rb):
     """ Rj shape of [J, M, M]

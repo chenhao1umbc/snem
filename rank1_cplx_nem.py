@@ -48,9 +48,9 @@ for epoch in range(opts['n_epochs']):
 
         for i in range(opts['EM_iter']):
             "E-step"
-            Rs = vhat.diag_embed()
+            Rs = vhat.cpu().diag_embed() # shape of [..., J, J]
             Rx = Hhat @ Rs @ Hhat.t().conj() + Rb
-            W = Rs @ Hhat.t().conj() @ Rx.inverse()
+            W = Rs @ Hhat.t().conj() @ Rx.inverse()  # shape of [..., J, M]
             shat = W @ x[...,None]
             Rsshatnf = shat @ shat.transpose(-1,-2).conj() + Rs - W@Hhat@Rs
 
@@ -65,7 +65,7 @@ for epoch in range(opts['n_epochs']):
             Rb.imag = Rb.imag - Rb.imag
 
             vhat = model(g).exp()
-            loss = loss_func(x, shat, vhat, Rsshat, Rb)
+            loss = loss_func(vhat, Rsshatnf.cuda())
             optim_gamma.zero_grad()   
             loss.backward()
             torch.nn.utils.clip_grad_norm_([g], max_norm=500)
@@ -82,9 +82,7 @@ for epoch in range(opts['n_epochs']):
             param.requires_grad_(True)
         g.requires_grad_(False)
         vhat = model(g).exp()
-        loss = loss_func(x, shat, vhat, Rsshat, Rb)
-        loss.backward() 
-
+        loss = loss_func(vhat, Rsshatnf.cuda())
         optimizer.zero_grad()   
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=500)
