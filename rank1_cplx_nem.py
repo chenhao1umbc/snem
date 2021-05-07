@@ -1,78 +1,23 @@
-# this file the python version of rank1 model 
+#%% load dependency 
+from utils import *
 
-#%% loading dependency
-import os
-import h5py 
-import numpy as np
-import matplotlib.pyplot as plt
-import scipy.io as sio
-from scipy.signal import stft 
-
-import torch
-from torch import nn
-import torch.nn.functional as Func
-import torch.utils.data as Data
-from unet.unet_model import UNetHalf
-# import torch_optimizer as optim
-
-# from torch.utils.tensorboard import SummaryWriter
-plt.rcParams['figure.dpi'] = 100
-torch.set_printoptions(linewidth=160)
-torch.set_default_dtype(torch.float64)
-
-"make the result reproducible"
-torch.manual_seed(1)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-print('done loading')
-
-
-#%% Neural EM algorithm
-def loss_func(x, s, vhat, Rsshat, Rb):
-    pass
-    return 0
-
-def calc_ll_cpx2(x, vhat, Rj, Rb):
-    """ Rj shape of [J, M, M]
-        vhat shape of [N, F, J]
-        Rb shape of [M, M]
-        x shape of [N, F, M]
-    """
-    _, M, M = Rj.shape
-    N, F, J = vhat.shape
-    Rcj = vhat.reshape(N*F, J) @ Rj.reshape(J, M*M)
-    Rcj = Rcj.reshape(N, F, M, M)
-    Rx = Rcj + Rb 
-    # l = -(np.pi*Rx.det()).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
-    l = -(np.pi*mydet(Rx)).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
-    return l.sum()
-
-def mydet(x):
-    """calc determinant of tensor for the last 2 dimensions,
-    suppose x is postive definite hermitian matrix
-
-    Args:
-        x ([pytorch tensor]): [shape of [..., N, N]]
-    """
-    s = x.shape[:-2]
-    N = x.shape[-1]
-    l = torch.linalg.cholesky(x)
-    ll = l.diagonal(dim1=-1, dim2=-2)
-    res = torch.ones(s).to(x.device)
-    for i in range(N):
-        res = res * ll[..., i]**2
-    return res
-
-
-data = h5py.File('data/x5000M5.mat', 'r')
-x = torch.tensor(data['x'], dtype=torch.float) # [sample, N, F, channel]
-xtr, xcv, xte = x[:4000], x[4000:4500], x[4500:]
-gamma = torch.rand(5000, 4, 4)
+#%% load data
+# data = h5py.File('data/x5000M5.mat', 'r')
+# x = torch.tensor(data['x'], dtype=torch.float) # [sample, N, F, channel]
+I = 500 # how many samples
 M, N, F, J = 3, 150, 150, 3
 NF = N*F
+opt = {}
+opt.batch_size = 64
+
+x = torch.rand(I, 150, 150, M, dtype=torch.cdouble)
+gamma = torch.rand(I, 4, 4)
+xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
+gtr, gcv, gte = gamma[:int(0.8*I)], gamma[int(0.8*I):int(0.9*I)], gamma[int(0.9*I):]
 
 
 
+#%% neural EM
 # for epoch in range(1):    
 #     for i, (gamma, v) in enumerate(tr): # gamma [n_batch, n_f, n_t]
 #         pass
@@ -80,11 +25,9 @@ NF = N*F
 
 
 "initial"
-# vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
-# Hhat = torch.randn(M, J).to(torch.cdouble)
-d = sio.loadmat('data/vhat_Hhat.mat')
-vhat, Hhat = torch.tensor(d['vhat']).to(torch.cdouble), torch.tensor(d['Hhat'])
-Rb = torch.eye(M).to(torch.cdouble)*100
+vhat = torch.randn(opt.batch_size, N, F, J).abs().to(torch.cdouble)
+Hhat = torch.randn(opt.batch_size, M, J).to(torch.cdouble)
+Rb = torch.eye(opt.batch_size, M).to(torch.cdouble)*100
 Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
 Rj = torch.zeros(J, M, M).to(torch.cdouble)
 ll_traj = []
