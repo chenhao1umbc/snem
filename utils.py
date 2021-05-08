@@ -44,9 +44,9 @@ def loss_func(vhat, Rsshatnf):
     for i in range(J):
         det_Rs = det_Rs * vhat[..., i]**2
     p1 = det_Rs.log().sum() 
-    p2 = Rsshatnf.diagonal(dim1=-1, dim2=-2)/vhat
+    p2 = Rsshatnf.diagonal(dim1=-1, dim2=-2)/vhat.squeeze()[...,None]
     loss = p1 + p2
-    return loss
+    return loss.sum()
 
 def calc_ll_cpx2(x, vhat, Rj, Rb):
     """ Rj shape of [J, M, M]

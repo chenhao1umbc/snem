@@ -11,7 +11,7 @@ opts = {}
 opts['batch_size'] = 64
 opts['EM_iter'] = 100
 opts['lr'] = 0.01
-opts['n_epochs'] = 200  
+opts['n_epochs'] = 100  
 opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
 opts['n_ch'] = 1  
 
@@ -20,7 +20,7 @@ gamma = torch.rand(I, opts['d_gamma'], opts['d_gamma'])
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
 gtr, gcv, gte = gamma[:int(0.8*I)], gamma[int(0.8*I):int(0.9*I)], gamma[int(0.9*I):]
 data = Data.TensorDataset(gtr, xtr)
-tr = Data.DataLoader(data, drop_last=True)
+tr = Data.DataLoader(data, batch_size=opts['batch_size'], drop_last=True)
 
 #%% neural EM
 model = UNetHalf(opts['n_ch'], 1).cuda()
@@ -42,26 +42,26 @@ for epoch in range(opts['n_epochs']):
         vhat = torch.randn(opts['batch_size'], N, F, J).abs().to(torch.cdouble)
         Hhat = torch.randn(opts['batch_size'], M, J).to(torch.cdouble)
         Rb = torch.ones(opts['batch_size'], M).diag_embed().to(torch.cdouble)*100
-        Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
+        Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((1,2))/NF
         Rj = torch.zeros(J, M, M).to(torch.cdouble)
         ll_traj = []
 
         for i in range(opts['EM_iter']):
             "E-step"
-            Rs = vhat.cpu().diag_embed() # shape of [..., J, J]
-            Rx = Hhat @ Rs @ Hhat.t().conj() + Rb
-            W = Rs @ Hhat.t().conj() @ Rx.inverse()  # shape of [..., J, M]
-            shat = W @ x[...,None]
-            Rsshatnf = shat @ shat.transpose(-1,-2).conj() + Rs - W@Hhat@Rs
+            Rs = vhat.cpu().diag_embed() # shape of [I, N, F, J, J]
+            Rx = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb # shape of [I, N, F, J, J]
+            W = Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() @ Rx.inverse()  # shape of [N, F, I, J, M]
+            shat = W.permute(2,0,1,3,4) @ x[...,None]
+            Rsshatnf = shat @ shat.transpose(-1,-2).conj() + Rs - (W@Hhat@Rs.permute(1,2,0,3,4)).permute(2,0,1,3,4)
 
-            Rsshat = Rsshatnf.sum([0,1])/NF
-            Rxshat = (x[..., None] @ shat.transpose(-1,-2).conj()).sum((0,1))/NF
+            Rsshat = Rsshatnf.sum([1,2])/NF # shape of [I, J, J]
+            Rxshat = (x[..., None] @ shat.transpose(-1,-2).conj()).sum((1,2))/NF # shape of [I, M, J]
 
             "M-step"
-            Hhat = Rxshat @ Rsshat.inverse()
-            Rb = Rxxhat - Hhat@Rxshat.t().conj() - \
-                Rxshat@Hhat.t().conj() + Hhat@Rsshat@Hhat.t().conj()
-            Rb = Rb.diag().diag()
+            Hhat = Rxshat @ Rsshat.inverse() # shape of [I, M, J]
+            Rb = Rxxhat - Hhat@Rxshat.transpose(-1,-2).conj() - \
+                Rxshat@Hhat.transpose(-1,-2).conj() + Hhat@Rsshat@Hhat.transpose(-1,-2).conj()
+            Rb = Rb.diagonal(dim1=-1, dim2=-2).diag_embed()
             Rb.imag = Rb.imag - Rb.imag
 
             vhat = model(g).exp()
@@ -75,7 +75,7 @@ for epoch in range(opts['n_epochs']):
             "compute log-likelyhood"
             for j in range(J):
                 Rj[j] = Hhat[:, j][..., None] @ Hhat[:, j][..., None].t().conj()
-            ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
+            ll_traj.append(calc_ll_cpx2(x, vhat.cpu(), Rj, Rb).item())
             
         #%% update neural network
         for param in model.parameters():
@@ -89,3 +89,5 @@ for epoch in range(opts['n_epochs']):
         optimizer.step()
         torch.cuda.empty_cache()
 
+
+# %%
