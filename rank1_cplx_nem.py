@@ -43,7 +43,7 @@ for epoch in range(opts['n_epochs']):
         Hhat = torch.randn(opts['batch_size'], M, J).to(torch.cdouble)
         Rb = torch.ones(opts['batch_size'], M).diag_embed().to(torch.cdouble)*100
         Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((1,2))/NF
-        Rj = torch.zeros(J, M, M).to(torch.cdouble)
+        Rj = torch.zeros(opts['batch_size'], J, M, M).to(torch.cdouble)
         ll_traj = []
 
         for i in range(opts['EM_iter']):
@@ -64,17 +64,19 @@ for epoch in range(opts['n_epochs']):
             Rb = Rb.diagonal(dim1=-1, dim2=-2).diag_embed()
             Rb.imag = Rb.imag - Rb.imag
 
-            vhat = model(g).exp()
-            loss = loss_func(vhat, Rsshatnf.cuda())
-            optim_gamma.zero_grad()   
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_([g], max_norm=500)
-            optim_gamma.step()
-            torch.cuda.empty_cache()
+            vhat = Rsshatnf.diagonal(dim1=-1, dim2=-2)
+            vhat.imag = vhat.imag - vhat.imag
+            # vhat = model(g).exp()
+            # loss = loss_func(vhat, Rsshatnf.cuda())
+            # optim_gamma.zero_grad()   
+            # loss.backward()
+            # torch.nn.utils.clip_grad_norm_([g], max_norm=500)
+            # optim_gamma.step()
+            # torch.cuda.empty_cache()
             
             "compute log-likelyhood"
             for j in range(J):
-                Rj[j] = Hhat[:, j][..., None] @ Hhat[:, j][..., None].t().conj()
+                Rj[:, j] = Hhat[..., j][..., None] @ Hhat[..., j][..., None].transpose(-1,-2).conj()
             ll_traj.append(calc_ll_cpx2(x, vhat.cpu(), Rj, Rb).item())
             
         #%% update neural network

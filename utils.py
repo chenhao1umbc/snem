@@ -49,19 +49,18 @@ def loss_func(vhat, Rsshatnf):
     return loss.sum()
 
 def calc_ll_cpx2(x, vhat, Rj, Rb):
-    """ Rj shape of [J, M, M]
-        vhat shape of [N, F, J]
-        Rb shape of [M, M]
-        x shape of [N, F, M]
+    """ Rj shape of [I, J, M, M]
+        vhat shape of [I, N, F, J]
+        Rb shape of [I, M, M]
+        x shape of [I, N, F, M]
     """
-    _, M, M = Rj.shape
-    N, F, J = vhat.shape
-    Rcj = vhat.reshape(N*F, J) @ Rj.reshape(J, M*M)
-    Rcj = Rcj.reshape(N, F, M, M)
-    Rx = Rcj + Rb 
-    # l = -(np.pi*Rx.det()).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
+    _, _, M, M = Rj.shape
+    I, N, F, J = vhat.shape
+    Rcj = vhat.reshape(I, N*F, J) @ Rj.reshape(I, J, M*M)
+    Rcj = Rcj.reshape(I, N, F, M, M).permute(1,2,0,3,4)
+    Rx = (Rcj + Rb).permute(2,0,1,3,4) # shape of [I, N, F, M, M]
     l = -(np.pi*mydet(Rx)).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
-    return l.sum()
+    return l.sum().real
 
 def mydet(x):
     """calc determinant of tensor for the last 2 dimensions,
