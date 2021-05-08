@@ -5,7 +5,7 @@ from utils import *
 # data = h5py.File('data/x5000M5.mat', 'r')
 # x = torch.tensor(data['x'], dtype=torch.float) # [sample, N, F, channel]
 I = 500 # how many samples
-M, N, F, J = 3, 150, 150, 3
+M, N, F, J = 5, 150, 150, 3
 NF = N*F
 opts = {}
 opts['batch_size'] = 64
