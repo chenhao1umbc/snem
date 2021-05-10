@@ -41,10 +41,10 @@ def loss_func(vhat, Rsshatnf):
     J = vhat.shape[-1]
     shape = vhat.shape[:-1]
     det_Rs = torch.ones(shape).to(vhat.device)
-    for i in range(J):
-        det_Rs = det_Rs * vhat[..., i]**2
+    for j in range(J):
+        det_Rs = det_Rs * vhat[..., j]**2
     p1 = det_Rs.log().sum() 
-    p2 = Rsshatnf.diagonal(dim1=-1, dim2=-2)/vhat.squeeze()[...,None]
+    p2 = Rsshatnf.diagonal(dim1=-1, dim2=-2)/vhat
     loss = p1 + p2
     return loss.sum()
 
