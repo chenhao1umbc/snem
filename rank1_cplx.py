@@ -126,10 +126,3 @@ for j in range(J):
     plt.colorbar()
     plt.show()
 
-
-#%% Neural EM algorithm
-
-# data = h5py.File('data/x5000M5.mat', 'r')
-# x = torch.tensor(data['x'], dtype=torch.float) # [sample, N, F, channel]
-# xtr, xcv, xte = x[:4000], x[4000:4500], x[4500:]
-
