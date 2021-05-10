@@ -1,5 +1,6 @@
 #%% load dependency 
 from utils import *
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 #%% load data
 # data = h5py.File('data/x5000M5.mat', 'r')
