@@ -14,10 +14,6 @@ from unet.unet_model import UNetHalf4by4 as UNetHalf
 import torch_optimizer as optim
 
 # from torch.utils.tensorboard import SummaryWriter
-plt.rcParams['figure.dpi'] = 100
-torch.set_printoptions(linewidth=160)
-torch.set_default_dtype(torch.float64)
-
 "make the result reproducible"
 torch.manual_seed(1)
 torch.backends.cudnn.deterministic = True
