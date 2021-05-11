@@ -21,7 +21,7 @@ torch.backends.cudnn.benchmark = False
 print('done loading')
 
 
-#%% Neural EM algorithm
+#%% functions
 def loss_func(vhat, Rsshatnf):
     """This function is only the Q1 part, which is related to vj
         Q= Q1 + Q2, Q1 = \sum_nf -log(|Rs(n,f)|) - tr{Rsshat_old(n,f)Rs^-1(n,f))}
