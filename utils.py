@@ -10,7 +10,7 @@ import torch
 from torch import nn
 import torch.nn.functional as Func
 import torch.utils.data as Data
-from unet.unet_model import UNetHalf4by4 as UNetHalf
+from unet.unet_model import UNetHalf4by50 as UNetHalf
 import torch_optimizer as optim
 
 # from torch.utils.tensorboard import SummaryWriter
