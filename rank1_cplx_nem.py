@@ -1,5 +1,9 @@
 #%% load dependency 
-"This file has minimum gpu usage only for update models and vj"
+"""
+This file has calculate all the data in GPU.
+Avoiding using torch.set_default_tensor_type('torch.cuda.DoubleTensor')
+which easily leading to cuda memory overflow
+"""
 from utils import *
 os.environ["CUDA_VISIBLE_DEVICES"]="1"
 plt.rcParams['figure.dpi'] = 100
@@ -14,7 +18,7 @@ M, N, F, J = 5, 150, 150, 3
 NF = N*F
 opts = {}
 opts['batch_size'] = 64
-opts['EM_iter'] = 5
+opts['EM_iter'] = 10
 opts['lr'] = 0.01
 opts['n_epochs'] = 3
 opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
@@ -49,16 +53,17 @@ for epoch in range(opts['n_epochs']):
         g = gamma[:,:,None].cuda().requires_grad_()
         optim_gamma = torch.optim.SGD([g], lr= opts['lr']) 
 
+        x = x.cuda()
         vhat = torch.randn(opts['batch_size'], N, F, J).abs().to(torch.cdouble).cuda()
-        Hhat = torch.randn(opts['batch_size'], M, J).to(torch.cdouble)
-        Rb = torch.ones(opts['batch_size'], M).diag_embed().to(torch.cdouble)*100
+        Hhat = torch.randn(opts['batch_size'], M, J).to(torch.cdouble).cuda()
+        Rb = torch.ones(opts['batch_size'], M).diag_embed().cuda().to(torch.cdouble)*100
         Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((1,2))/NF
-        Rj = torch.zeros(opts['batch_size'], J, M, M).to(torch.cdouble)
+        Rj = torch.zeros(opts['batch_size'], J, M, M).to(torch.cdouble).cuda()
         ll_traj = []
 
         for ii in range(opts['EM_iter']):
             "E-step"
-            Rs = vhat.cpu().diag_embed() # shape of [I, N, F, J, J]
+            Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
             Rx = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb # shape of [I, N, F, J, J]
             W = Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() @ Rx.inverse()  # shape of [N, F, I, J, M]
             shat = W.permute(2,0,1,3,4) @ x[...,None]
@@ -89,10 +94,13 @@ for epoch in range(opts['n_epochs']):
             "compute log-likelyhood"
             for j in range(J):
                 Rj[:, j] = Hhat[..., j][..., None] @ Hhat[..., j][..., None].transpose(-1,-2).conj()
-            ll_traj.append(calc_ll_cpx2(x, vhat.cpu(), Rj, Rb).item())
+            ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
             if ii > 5 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
+                print(f'EM early stop at iter {ii}')
                 break
-            
+
+        plt.plot(ll_traj, '-x')
+        plt.show()
         #%% update neural network
         g.requires_grad_(False)
         for j in range(J):
@@ -108,5 +116,5 @@ for epoch in range(opts['n_epochs']):
             torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=500)
             optimizer[j].step()
             torch.cuda.empty_cache()
-
+    print(f'done with epoch{epoch}')
 # %%
