@@ -6,7 +6,7 @@ torch.set_printoptions(linewidth=160)
 torch.set_default_dtype(torch.double)
 
 #%% load data
-I = 200 # how many samples
+I = 250 # how many samples
 M, N, F, J = 3, 50, 50, 3
 NF = N*F
 opts = {}
