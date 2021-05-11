@@ -1,31 +1,26 @@
 #%% load dependency 
-"""
-This file has calculate all the data in GPU.
-Avoiding using torch.set_default_tensor_type('torch.cuda.DoubleTensor')
-which easily leading to cuda memory overflow
-"""
 from utils import *
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 plt.rcParams['figure.dpi'] = 100
 torch.set_printoptions(linewidth=160)
 torch.set_default_dtype(torch.double)
 
 #%% load data
-# data = h5py.File('data/x5000M5.mat', 'r')
-# x = torch.tensor(data['x'], dtype=torch.float) # [sample, N, F, channel]
 I = 100 # how many samples
 M, N, F, J = 5, 150, 150, 3
 NF = N*F
 opts = {}
 opts['batch_size'] = 64
-opts['EM_iter'] = 10
+opts['EM_iter'] = 100
 opts['lr'] = 0.01
 opts['n_epochs'] = 3
 opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
 opts['n_ch'] = 1  
 
-x = torch.rand(I, 150, 150, M, dtype=torch.cdouble)
-gamma = torch.rand(I, J, opts['d_gamma'], opts['d_gamma'])
+# x = torch.rand(I, 150, 150, M, dtype=torch.cdouble)
+data = h5py.File('data/x3000M3.mat', 'r')
+x = torch.tensor(data['x'], dtype=torch.cdouble) # [sample, N, F, channel]
+gamma = torch.rand(I, J, 1, opts['d_gamma'], opts['d_gamma'])
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
 gtr, gcv, gte = gamma[:int(0.8*I)], gamma[int(0.8*I):int(0.9*I)], gamma[int(0.9*I):]
 data = Data.TensorDataset(gtr, xtr)
@@ -47,10 +42,10 @@ for epoch in range(opts['n_epochs']):
             param.requires_grad_(False)
         model[j].eval()
 
-    for i, (gamma, x) in enumerate(tr): # gamma [n_batch, 4, 4]
+    for i, (x,) in enumerate(tr): # gamma [n_batch, 4, 4]
         #%% EM part
         "initial"
-        g = gamma[:,:,None].cuda().requires_grad_()
+        g = gamma[i*opts['n_batch']:(i+1)*opts['n_batch']].cuda().requires_grad_()
         optim_gamma = torch.optim.SGD([g], lr= opts['lr']) 
 
         x = x.cuda()
@@ -103,6 +98,7 @@ for epoch in range(opts['n_epochs']):
         plt.show()
         #%% update neural network
         g.requires_grad_(False)
+        gamma[i*opts['n_batch']:(i+1)*opts['n_batch']] = g.cpu()
         for j in range(J):
             model[j].train()
             for param in model[j].parameters():
@@ -117,4 +113,5 @@ for epoch in range(opts['n_epochs']):
             optimizer[j].step()
             torch.cuda.empty_cache()
     print(f'done with epoch{epoch}')
+
 # %%
