@@ -57,6 +57,7 @@ for epoch in range(opts['n_epochs']):
         Rj = torch.zeros(opts['batch_size'], J, M, M).to(torch.cdouble).cuda()
         ll_traj = []
 
+
         for ii in range(opts['EM_iter']):
             "E-step"
             Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
@@ -82,21 +83,14 @@ for epoch in range(opts['n_epochs']):
                 out[..., j] = model[j](g[:,j]).exp().squeeze()
             vhat.real = torch.max(out, torch.tensor(1e-30))
             loss = loss_func(vhat, Rsshatnf.cuda())
-            if torch.isnan(loss).sum() >0 :
-                print('nan happens-----------------------------------------------------------')
             optim_gamma.zero_grad()   
             loss.backward()
-            # temp = g.grad.clone()
-            # if torch.isnan(g.grad).sum() >0 :
-            #     input('nan happens')
-            torch.nn.utils.clip_grad_norm_([g], max_norm=500)
+            # torch.nn.utils.clip_grad_norm_([g], max_norm=500)
             optim_gamma.step()
             torch.cuda.empty_cache()
-            vhat = vhat.detach()
-            # if torch.isnan(g).sum() >0 :
-            #     input('nan happens')
             
             "compute log-likelyhood"
+            vhat = vhat.detach()
             for j in range(J):
                 Rj[:, j] = Hhat[..., j][..., None] @ Hhat[..., j][..., None].transpose(-1,-2).conj()
             ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
@@ -107,6 +101,10 @@ for epoch in range(opts['n_epochs']):
         if i == 0 :
             plt.plot(ll_traj, '-x')
             plt.title(f'the log-likelihood of the first batch at epoch {epoch}')
+            plt.show()
+
+            plt.imshow(vhat[0,...,0].real.cpu())
+            plt.title(f'One channel of vj in first sample from the first batch at epoch {epoch}')
             plt.show()
         #%% update neural network
         g.requires_grad_(False)
@@ -122,7 +120,7 @@ for epoch in range(opts['n_epochs']):
         loss = loss_func(vhat, Rsshatnf.cuda())
         loss.backward()
         for j in range(J):
-            torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=500)
+            # torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=500)
             optimizer[j].step()
             torch.cuda.empty_cache()
         loss_tr.append(loss.detach().cpu().item())
