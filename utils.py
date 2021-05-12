@@ -67,7 +67,11 @@ def mydet(x):
     """
     s = x.shape[:-2]
     N = x.shape[-1]
-    l = torch.linalg.cholesky(x)
+    try:
+        l = torch.linalg.cholesky(x)
+    except:
+        l = torch.linalg.cholesky(x + x.mean()*1e-10*torch.ones(x.shape[:-1], device=x.device).diag_embed())
+        print('low rank happend')
     ll = l.diagonal(dim1=-1, dim2=-2)
     res = torch.ones(s).to(x.device)
     for i in range(N):
