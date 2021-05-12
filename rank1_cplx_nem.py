@@ -79,7 +79,7 @@ for epoch in range(opts['n_epochs']):
             # vhat.imag = vhat.imag - vhat.imag
             for j in range(J):
                 vhat[..., j] = model[j](g[:,j]).exp().squeeze()
-            vhat = torch.max(vhat.real, torch.tensor(1e-30))
+            vhat.real = torch.max(vhat.real, torch.tensor(1e-30))
             loss = loss_func(vhat, Rsshatnf.cuda())
             if torch.isnan(loss).sum() >0 :
                 print('nan happens-----------------------------------------------------------')
@@ -116,7 +116,7 @@ for epoch in range(opts['n_epochs']):
                 param.requires_grad_(True)
             vhat[..., j] = model[j](g[:,j]).exp().squeeze()
             optimizer[j].zero_grad() 
-        vhat = torch.max(vhat.real, torch.tensor(1e-30))
+        vhat.real = torch.max(vhat.real, torch.tensor(1e-30))
         loss = loss_func(vhat, Rsshatnf.cuda())
         loss.backward()
         for j in range(J):
