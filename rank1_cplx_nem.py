@@ -6,7 +6,7 @@ torch.set_printoptions(linewidth=160)
 torch.set_default_dtype(torch.double)
 
 #%% load data
-I = 250 # how many samples
+I = 200 # how many samples
 M, N, F, J = 3, 50, 50, 3
 NF = N*F
 opts = {}
@@ -17,8 +17,8 @@ opts['n_epochs'] = 200
 opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
 opts['n_ch'] = 1  
 
-# x = torch.rand(I, 150, 150, M, dtype=torch.cdouble)
-data = sio.loadmat('../data/x3000M3.mat')
+# x = torch.rand(I, N, F, M, dtype=torch.cdouble)
+data = sio.loadmat('data/x3000M3.mat')
 x = torch.tensor(data['x'], dtype=torch.cdouble).permute(0,2,3,1) # [sample, N, F, channel]
 gamma = torch.rand(I, J, 1, opts['d_gamma'], opts['d_gamma'])
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
@@ -28,6 +28,7 @@ tr = Data.DataLoader(data, batch_size=opts['batch_size'], drop_last=True)
 
 #%% neural EM
 model, optimizer = {}, {}
+loss_tr = []
 for j in range(J):
     model[j] = UNetHalf(opts['n_ch'], 1).cuda()
     optimizer[j] = optim.RAdam(model[j].parameters(),
@@ -78,31 +79,34 @@ for epoch in range(opts['n_epochs']):
             # vhat.imag = vhat.imag - vhat.imag
             for j in range(J):
                 vhat[..., j] = model[j](g[:,j]).exp().squeeze()
+            vhat = torch.max(vhat.real, torch.tensor(1e-30))
             loss = loss_func(vhat, Rsshatnf.cuda())
             if torch.isnan(loss).sum() >0 :
-                input('nan happens')
+                print('nan happens-----------------------------------------------------------')
             optim_gamma.zero_grad()   
             loss.backward()
             temp = g.grad.clone()
-            if torch.isnan(g.grad).sum() >0 :
-                input('nan happens')
+            # if torch.isnan(g.grad).sum() >0 :
+            #     input('nan happens')
             torch.nn.utils.clip_grad_norm_([g], max_norm=500)
             optim_gamma.step()
             torch.cuda.empty_cache()
             vhat = vhat.detach()
-            if torch.isnan(g).sum() >0 :
-                input('nan happens')
+            # if torch.isnan(g).sum() >0 :
+            #     input('nan happens')
             
             "compute log-likelyhood"
             for j in range(J):
                 Rj[:, j] = Hhat[..., j][..., None] @ Hhat[..., j][..., None].transpose(-1,-2).conj()
             ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
             if ii > 20 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
-                print(f'EM early stop at iter {ii}')
+                if i == 0: print(f'EM early stop at iter {ii}')
                 break
-
-        plt.plot(ll_traj, '-x')
-        plt.show()
+        
+        if i == 0 :
+            plt.plot(ll_traj, '-x')
+            plt.title(f'the log-likelihood of the first batch at epoch {epoch}')
+            plt.show()
         #%% update neural network
         g.requires_grad_(False)
         gtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = g.cpu()
@@ -112,13 +116,18 @@ for epoch in range(opts['n_epochs']):
                 param.requires_grad_(True)
             vhat[..., j] = model[j](g[:,j]).exp().squeeze()
             optimizer[j].zero_grad() 
-
+        vhat = torch.max(vhat.real, torch.tensor(1e-30))
         loss = loss_func(vhat, Rsshatnf.cuda())
         loss.backward()
         for j in range(J):
             torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=500)
             optimizer[j].step()
             torch.cuda.empty_cache()
+        loss_tr.append(loss.detach().cpu().item())
+
     print(f'done with epoch{epoch}')
+    plt.plot(loss_tr, '-xr')
+    plt.title(f'the loss fuction of all the iterations at {epoch}')
+    plt.show()
 
 # %%
