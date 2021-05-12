@@ -79,18 +79,25 @@ for epoch in range(opts['n_epochs']):
             for j in range(J):
                 vhat[..., j] = model[j](g[:,j]).exp().squeeze()
             loss = loss_func(vhat, Rsshatnf.cuda())
+            if torch.isnan(loss).sum() >0 :
+                input('nan happens')
             optim_gamma.zero_grad()   
             loss.backward()
+            temp = g.grad.clone()
+            if torch.isnan(g.grad).sum() >0 :
+                input('nan happens')
             torch.nn.utils.clip_grad_norm_([g], max_norm=500)
             optim_gamma.step()
             torch.cuda.empty_cache()
             vhat = vhat.detach()
+            if torch.isnan(g).sum() >0 :
+                input('nan happens')
             
             "compute log-likelyhood"
             for j in range(J):
                 Rj[:, j] = Hhat[..., j][..., None] @ Hhat[..., j][..., None].transpose(-1,-2).conj()
             ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
-            if ii > 5 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
+            if ii > 20 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
                 print(f'EM early stop at iter {ii}')
                 break
 
