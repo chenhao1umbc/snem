@@ -28,7 +28,7 @@ tr = Data.DataLoader(data, batch_size=opts['batch_size'], drop_last=True)
 
 #%% neural EM
 model, optimizer = {}, {}
-loss_tr = []
+loss_iter, loss_tr = [], []
 for j in range(J):
     model[j] = UNetHalf(opts['n_ch'], 1).cuda()
     optimizer[j] = optim.RAdam(model[j].parameters(),
@@ -123,11 +123,16 @@ for epoch in range(opts['n_epochs']):
             # torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=500)
             optimizer[j].step()
             torch.cuda.empty_cache()
-        loss_tr.append(loss.detach().cpu().item())
+        loss_iter.append(loss.detach().cpu().item())
 
     print(f'done with epoch{epoch}')
+    plt.plot(loss_iter, '-xr')
+    plt.title(f'Loss fuction of all the iterations at {epoch}')
+    plt.show()
+
+    loss_tr.append(loss.detach().cpu().item())
     plt.plot(loss_tr, '-xr')
-    plt.title(f'the loss fuction of all the iterations at {epoch}')
+    plt.title(f'Loss fuction at {epoch}')
     plt.show()
 
 # %%
