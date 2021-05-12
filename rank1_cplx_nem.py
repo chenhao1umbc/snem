@@ -77,15 +77,16 @@ for epoch in range(opts['n_epochs']):
 
             # vhat = Rsshatnf.diagonal(dim1=-1, dim2=-2)
             # vhat.imag = vhat.imag - vhat.imag
+            out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
             for j in range(J):
-                vhat[..., j] = model[j](g[:,j]).exp().squeeze()
-            vhat.real = torch.max(vhat.real, torch.tensor(1e-30))
+                out[..., j] = model[j](g[:,j]).exp().squeeze()
+            vhat.real = torch.max(out, torch.tensor(1e-30))
             loss = loss_func(vhat, Rsshatnf.cuda())
             if torch.isnan(loss).sum() >0 :
                 print('nan happens-----------------------------------------------------------')
             optim_gamma.zero_grad()   
             loss.backward()
-            temp = g.grad.clone()
+            # temp = g.grad.clone()
             # if torch.isnan(g.grad).sum() >0 :
             #     input('nan happens')
             torch.nn.utils.clip_grad_norm_([g], max_norm=500)
@@ -110,13 +111,14 @@ for epoch in range(opts['n_epochs']):
         #%% update neural network
         g.requires_grad_(False)
         gtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = g.cpu()
+        out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
         for j in range(J):
             model[j].train()
             for param in model[j].parameters():
                 param.requires_grad_(True)
-            vhat[..., j] = model[j](g[:,j]).exp().squeeze()
+            out[..., j] = model[j](g[:,j]).exp().squeeze()
             optimizer[j].zero_grad() 
-        vhat.real = torch.max(vhat.real, torch.tensor(1e-30))
+        vhat.real = torch.max(out, torch.tensor(1e-30))
         loss = loss_func(vhat, Rsshatnf.cuda())
         loss.backward()
         for j in range(J):
