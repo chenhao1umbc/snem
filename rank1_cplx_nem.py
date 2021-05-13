@@ -47,7 +47,7 @@ for epoch in range(opts['n_epochs']):
         #%% EM part
         "initial"
         g = gtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda().requires_grad_()
-        optim_gamma = torch.optim.SGD([g], lr= opts['lr']) 
+        optim_gamma = torch.optim.Adam([g], lr= opts['lr']) 
 
         x = x.cuda()
         vhat = torch.randn(opts['batch_size'], N, F, J).abs().to(torch.cdouble).cuda()
