@@ -104,6 +104,7 @@ for epoch in range(opts['n_epochs']):
             plt.show()
 
             plt.imshow(vhat[0,...,0].real.cpu())
+            plt.colorbar()
             plt.title(f'One channel of vj in first sample from the first batch at epoch {epoch}')
             plt.show()
         #%% update neural network
