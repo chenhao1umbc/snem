@@ -42,7 +42,7 @@ def loss_func(vhat, Rsshatnf):
     p1 = det_Rs.log().sum() 
     p2 = Rsshatnf.diagonal(dim1=-1, dim2=-2)/vhat
     loss = p1 + p2
-    return loss.sum().log()
+    return loss.sum()
 
 def calc_ll_cpx2(x, vhat, Rj, Rb):
     """ Rj shape of [I, J, M, M]
