@@ -145,8 +145,6 @@ for i in range(max_iter):
         optim_gamma.step()
         torch.cuda.empty_cache()
         loss_rec.append(loss.detach().item())
-        if gamma.isnan().sum() >0:
-            input(nan)
     plt.plot(loss_rec)
     plt.show()
 

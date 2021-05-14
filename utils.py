@@ -41,7 +41,7 @@ def loss_func(vhat, Rsshatnf):
         det_Rs = det_Rs * vhat[..., j]**2
     p1 = det_Rs.log().sum() 
     p2 = Rsshatnf.diagonal(dim1=-1, dim2=-2)/vhat
-    loss = p1 + p2
+    loss = p1 + p2.sum()
     return loss.sum()
 
 def calc_ll_cpx2(x, vhat, Rj, Rb):
