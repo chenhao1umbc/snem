@@ -83,5 +83,5 @@ if __name__ == '__main__':
     a, b = torch.rand(3,1), torch.rand(3,1)
     x = (a@a.t() + b@b.t()).cuda()
 
-    ll = torch.linalg.cholesky(x + x.max()*1e-5*torch.ones(x.shape[:-1], device=x.device).diag_embed())
+    ll = torch.linalg.cholesky(x + x.real.max()*1e-5*torch.ones(x.shape[:-1], device=x.device).diag_embed())
     l = torch.linalg.cholesky(x)
