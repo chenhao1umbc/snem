@@ -18,6 +18,7 @@ import torch.utils.data as Data
 plt.rcParams['figure.dpi'] = 100
 torch.set_printoptions(linewidth=160)
 torch.set_default_dtype(torch.float64)
+torch.set_default_tensor_type(torch.cuda.DoubleTensor)
 
 "make the result reproducible"
 torch.manual_seed(1)
@@ -77,7 +78,8 @@ def loss_func(vhat, Rsshatnf):
         det_Rs = det_Rs * vhat[..., j]**2
     p1 = det_Rs.log().sum() 
     p2 = Rsshatnf.diagonal(dim1=-1, dim2=-2)/vhat
-    loss = p1 + p2
+    loss = p1 + p2.sum()
+    loss.imag = loss.imag - loss.imag
     return loss.sum()
 
 "reproduce the Matlab result"
@@ -106,10 +108,8 @@ Rj = torch.zeros(J, M, M).to(torch.cdouble)
 ll_traj = []
 
 gamma = vhat.real.clone().requires_grad_()
-optim_gamma = torch.optim.Adam([gamma], lr=0.01)
+optim_gamma = torch.optim.SGD([gamma], lr=0.1)
 
-
-#%%
 for i in range(max_iter):
     "E-step"
     Rs = vhat.diag_embed()
@@ -127,16 +127,28 @@ for i in range(max_iter):
         Rxshat@Hhat.t().conj() + Hhat@Rsshat@Hhat.t().conj()
     Rb = Rb.diag().diag()
     Rb.imag = Rb.imag - Rb.imag
-    # vhat = Rsshatnf.diagonal(dim1=-1, dim2=-2)
+    vj = Rsshatnf.diagonal(dim1=-1, dim2=-2).real
     # vhat.imag = vhat.imag - vhat.imag
-    out = gamma.exp()
-    vhat.real = torch.max(out, torch.tensor(1e-30))
-    loss = loss_func(vhat, Rsshatnf)
-    optim_gamma.zero_grad()   
-    loss.backward()
-    # torch.nn.utils.clip_grad_norm_([g], max_norm=500)
-    optim_gamma.step()
-    torch.cuda.empty_cache()
+    loss_rec = []
+    for ii in range(300):
+        out = gamma.exp()
+        out.retain_grad()
+        vhat.real = torch.max(out, torch.tensor(1e-30))
+        loss = loss_func(vhat, Rsshatnf)
+        optim_gamma.zero_grad()   
+        loss.backward(retain_graph=True)
+        print(gamma.grad.max(), 'before clip')
+        torch.nn.utils.clip_grad_norm_([gamma], max_norm=500)
+        print(gamma.grad.max(), 'after clip')
+        print(out.grad.max(), 'out.grad max')
+        temp = gamma.clone()
+        optim_gamma.step()
+        torch.cuda.empty_cache()
+        loss_rec.append(loss.detach().item())
+        if gamma.isnan().sum() >0:
+            input(nan)
+    plt.plot(loss_rec)
+    plt.show()
 
     "compute log-likelyhood"
     vhat = vhat.detach()
@@ -162,3 +174,5 @@ for j in range(J):
     plt.colorbar()
     plt.show()
 
+
+# %%
