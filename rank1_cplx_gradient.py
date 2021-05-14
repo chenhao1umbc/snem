@@ -130,7 +130,7 @@ for i in range(max_iter):
     vj = Rsshatnf.diagonal(dim1=-1, dim2=-2).real
     # vhat.imag = vhat.imag - vhat.imag
     loss_rec = []
-    for ii in range(300):
+    for ii in range(100):
         out = gamma.exp()
         out.retain_grad()
         vhat.real = torch.max(out, torch.tensor(1e-30))
