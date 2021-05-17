@@ -108,7 +108,7 @@ Rj = torch.zeros(J, M, M).to(torch.cdouble)
 ll_traj = []
 
 gamma = vhat.real.clone().requires_grad_()
-optim_gamma = torch.optim.SGD([gamma], lr=0.1)
+optim_gamma = torch.optim.SGD([gamma], lr=0.01)
 
 for i in range(max_iter):
     "E-step"
@@ -130,23 +130,23 @@ for i in range(max_iter):
     vj = Rsshatnf.diagonal(dim1=-1, dim2=-2).real
     # vhat.imag = vhat.imag - vhat.imag
     loss_rec = []
-    for ii in range(300):
+    for ii in range(1):
         out = gamma.exp()
         out.retain_grad()
         vhat.real = torch.max(out, torch.tensor(1e-30))
         loss = loss_func(vhat, Rsshatnf)
         optim_gamma.zero_grad()   
         loss.backward(retain_graph=True)
-        print(gamma.grad.max(), 'before clip')
+        # print(gamma.grad.max(), 'before clip')
         torch.nn.utils.clip_grad_norm_([gamma], max_norm=500)
-        print(gamma.grad.max(), 'after clip')
-        print(out.grad.max(), 'out.grad max')
+        # print(gamma.grad.max(), 'after clip')
+        # print(out.grad.max(), 'out.grad max')
         temp = gamma.clone()
         optim_gamma.step()
         torch.cuda.empty_cache()
         loss_rec.append(loss.detach().item())
-    plt.plot(loss_rec)
-    plt.show()
+    # plt.plot(loss_rec)
+    # plt.show()
 
     "compute log-likelyhood"
     vhat = vhat.detach()
@@ -163,12 +163,12 @@ for i in range(max_iter):
 for j in range(J):
     plt.figure(j)
     plt.subplot(1,2,1)
-    plt.imshow(vhat[:,:,j].real)
+    plt.imshow(vhat[:,:,j].real.cpu())
     plt.colorbar()
     
     plt.subplot(1,2,2)
-    plt.imshow(vj[:,:,j])
-    plt.title('Ground-truth')
+    plt.imshow(vj[:,:,j].cpu())
+    plt.title('math')
     plt.colorbar()
     plt.show()
 
