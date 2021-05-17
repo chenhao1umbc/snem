@@ -47,7 +47,7 @@ for epoch in range(opts['n_epochs']):
         #%% EM part
         "initial"
         g = gtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda().requires_grad_()
-        optim_gamma = torch.optim.Adam([g], lr= opts['lr']) 
+        optim_gamma = torch.optim.SGD([g], lr=0.1) 
 
         x = x.cuda()
         vhat = torch.randn(opts['batch_size'], N, F, J).abs().to(torch.cdouble).cuda()
@@ -56,7 +56,6 @@ for epoch in range(opts['n_epochs']):
         Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((1,2))/NF
         Rj = torch.zeros(opts['batch_size'], J, M, M).to(torch.cdouble).cuda()
         ll_traj = []
-
 
         for ii in range(opts['EM_iter']):
             "E-step"
@@ -81,7 +80,7 @@ for epoch in range(opts['n_epochs']):
             out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
             for j in range(J):
                 out[..., j] = model[j](g[:,j]).exp().squeeze()
-            vhat.real = torch.min(torch.max(out, torch.tensor(1e-30)), torch.tensor(1e4))
+            vhat.real = torch.min(torch.max(out, torch.tensor(1e-20)), torch.tensor(1e3))
             loss = loss_func(vhat, Rsshatnf.cuda())
             optim_gamma.zero_grad()   
             loss.backward()
@@ -117,11 +116,11 @@ for epoch in range(opts['n_epochs']):
                 param.requires_grad_(True)
             out[..., j] = model[j](g[:,j]).exp().squeeze()
             optimizer[j].zero_grad() 
-        vhat.real = torch.min(torch.max(out, torch.tensor(1e-30)), torch.tensor(1e4))
+        vhat.real = torch.min(torch.max(out, torch.tensor(1e-20)), torch.tensor(1e3))
         loss = loss_func(vhat, Rsshatnf.cuda())
         loss.backward()
         for j in range(J):
-            # torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=500)
+            torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=100)
             optimizer[j].step()
             torch.cuda.empty_cache()
         loss_iter.append(loss.detach().cpu().item())
