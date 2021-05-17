@@ -104,7 +104,15 @@ for epoch in range(opts['n_epochs']):
 
             plt.imshow(vhat[0,...,0].real.cpu())
             plt.colorbar()
-            plt.title(f'One channel of vj in first sample from the first batch at epoch {epoch}')
+            plt.title(f'1st channel of vj in first sample from the first batch at epoch {epoch}')
+            plt.show()
+            plt.imshow(vhat[0,...,1].real.cpu())
+            plt.colorbar()
+            plt.title(f'2nd channel of vj in first sample from the first batch at epoch {epoch}')
+            plt.show()
+            plt.imshow(vhat[0,...,2].real.cpu())
+            plt.colorbar()
+            plt.title(f'3rd channel of vj in first sample from the first batch at epoch {epoch}')
             plt.show()
         #%% update neural network
         g.requires_grad_(False)
@@ -127,12 +135,12 @@ for epoch in range(opts['n_epochs']):
 
     print(f'done with epoch{epoch}')
     plt.plot(loss_iter, '-xr')
-    plt.title(f'Loss fuction of all the iterations at {epoch}')
+    plt.title(f'Loss fuction of all the iterations at epoch {epoch}')
     plt.show()
 
     loss_tr.append(loss.detach().cpu().item())
-    plt.plot(loss_tr, '-xr')
-    plt.title(f'Loss fuction at {epoch}')
+    plt.plot(loss_tr, '-or')
+    plt.title(f'Loss fuction at epoch {epoch}')
     plt.show()
 
 # %%
