@@ -18,7 +18,7 @@ import torch.utils.data as Data
 plt.rcParams['figure.dpi'] = 100
 torch.set_printoptions(linewidth=160)
 torch.set_default_dtype(torch.float64)
-torch.set_default_tensor_type(torch.cuda.DoubleTensor)
+# torch.set_default_tensor_type(torch.cuda.DoubleTensor)
 
 "make the result reproducible"
 torch.manual_seed(1)
@@ -95,7 +95,7 @@ c = c.permute(1,2,3,0) # shape of [N, F, J, M]
 d = sio.loadmat('data/v.mat')
 vj = torch.tensor(d['v'])
 pwr = torch.ones(1, 3)  # signal powers
-max_iter = 401
+max_iter = 101
 
 "initial"
 # vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
@@ -130,7 +130,7 @@ for i in range(max_iter):
     vj = Rsshatnf.diagonal(dim1=-1, dim2=-2).real
     # vhat.imag = vhat.imag - vhat.imag
     loss_rec = []
-    for ii in range(1):
+    for ii in range(10):
         out = gamma.exp()
         out.retain_grad()
         vhat.real = torch.max(out, torch.tensor(1e-30))
@@ -164,11 +164,12 @@ for j in range(J):
     plt.figure(j)
     plt.subplot(1,2,1)
     plt.imshow(vhat[:,:,j].real.cpu())
+    plt.title('GD')
     plt.colorbar()
     
     plt.subplot(1,2,2)
     plt.imshow(vj[:,:,j].cpu())
-    plt.title('math')
+    plt.title('Math')
     plt.colorbar()
     plt.show()
 
