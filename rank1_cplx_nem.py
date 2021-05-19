@@ -18,7 +18,7 @@ opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
 opts['n_ch'] = 1  
 
 # x = torch.rand(I, N, F, M, dtype=torch.cdouble)
-data = sio.loadmat('data/x3000M3.mat')
+data = sio.loadmat('data/x3000M3_shift.mat')
 x = torch.tensor(data['x'], dtype=torch.cdouble).permute(0,2,3,1) # [sample, N, F, channel]
 gamma = torch.rand(I, J, 1, opts['d_gamma'], opts['d_gamma'])
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
@@ -47,7 +47,7 @@ for epoch in range(opts['n_epochs']):
         #%% EM part
         "initial"
         g = gtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda().requires_grad_()
-        optim_gamma = torch.optim.SGD([g], lr=0.1) 
+        optim_gamma = torch.optim.SGD([g], lr= 0.1) 
 
         x = x.cuda()
         vhat = torch.randn(opts['batch_size'], N, F, J).abs().to(torch.cdouble).cuda()
@@ -84,7 +84,7 @@ for epoch in range(opts['n_epochs']):
             loss = loss_func(vhat, Rsshatnf.cuda())
             optim_gamma.zero_grad()   
             loss.backward()
-            # torch.nn.utils.clip_grad_norm_([g], max_norm=500)
+            torch.nn.utils.clip_grad_norm_([g], max_norm=100)
             optim_gamma.step()
             torch.cuda.empty_cache()
             
@@ -93,8 +93,9 @@ for epoch in range(opts['n_epochs']):
             for j in range(J):
                 Rj[:, j] = Hhat[..., j][..., None] @ Hhat[..., j][..., None].transpose(-1,-2).conj()
             ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
+            if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
             if ii > 20 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
-                if i == 0: print(f'EM early stop at iter {ii}')
+                print(f'EM early stop at iter {ii}, batch {i}, epoch {epoch}')
                 break
         
         if i == 0 :
@@ -135,12 +136,12 @@ for epoch in range(opts['n_epochs']):
 
     print(f'done with epoch{epoch}')
     plt.plot(loss_iter, '-xr')
-    plt.title(f'Loss fuction of all the iterations at epoch {epoch}')
+    plt.title(f'Loss fuction of all the iterations at epoch{epoch}')
     plt.show()
 
     loss_tr.append(loss.detach().cpu().item())
     plt.plot(loss_tr, '-or')
-    plt.title(f'Loss fuction at epoch {epoch}')
+    plt.title(f'Loss fuction at epoch{epoch}')
     plt.show()
 
 # %%
