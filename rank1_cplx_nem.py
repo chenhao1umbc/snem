@@ -11,8 +11,7 @@ M, N, F, J = 3, 50, 50, 3
 NF = N*F
 opts = {}
 opts['batch_size'] = 64
-opts['EM_iter'] = 50
-opts['gamma_iter'] = 1
+opts['EM_iter'] = 150
 opts['n_epochs'] = 200
 opts['lr'] = 0.01
 opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
@@ -78,7 +77,6 @@ for epoch in range(opts['n_epochs']):
 
             # vj = Rsshatnf.diagonal(dim1=-1, dim2=-2)
             # vj.imag = vj.imag - vj.imag
-            
             out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
             for j in range(J):
                 out[..., j] = model[j](g[:,j]).exp().squeeze()
@@ -146,17 +144,4 @@ for epoch in range(opts['n_epochs']):
     plt.title(f'Loss fuction at epoch{epoch}')
     plt.show()
 
-# %%
-for r in range(5):
-    out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
-    for j in range(J):
-        out[..., j] = model[j](g[:,j]).exp().squeeze()
-    loss = loss_func(vhat, Rsshatnf.cuda())
-    loss.backward()
-    torch.nn.utils.clip_grad_norm_([g], max_norm=100)
-    with torch.no_grad():   
-        g = g - 0.01*g.grad  # w requires_grad is set to False
-    g.requires_grad_()
-    del loss
-    torch.cuda.empty_cache()
-# %%
+#%%
