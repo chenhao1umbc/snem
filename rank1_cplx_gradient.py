@@ -144,7 +144,6 @@ for i in range(max_iter):
         torch.cuda.empty_cache()
         loss_rec.append(loss.detach().item())
         if ii > 5 and abs((loss_rec[-1]-loss_rec[-2])/loss_rec[-2])<1e-3:
-            print(ii)
             break
     # plt.plot(loss_rec)
     # plt.show()
