@@ -2,7 +2,7 @@
 
 #%% loading dependency
 import os
-import h5py 
+import time 
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.io as sio
@@ -12,13 +12,11 @@ import torch
 from torch import nn
 import torch.nn.functional as Func
 import torch.utils.data as Data
-# from unet.unet_model import UNet
 
-# from torch.utils.tensorboard import SummaryWriter
 plt.rcParams['figure.dpi'] = 100
 torch.set_printoptions(linewidth=160)
 torch.set_default_dtype(torch.float64)
-# torch.set_default_tensor_type(torch.cuda.DoubleTensor)
+torch.set_default_tensor_type(torch.cuda.DoubleTensor)
 
 "make the result reproducible"
 torch.manual_seed(1)
@@ -26,7 +24,7 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 print('done loading')
 
-
+t = time.time()
 #  EM algorithm for one complex sample
 def calc_ll_cpx2(x, vhat, Rj, Rb):
     """ Rj shape of [J, M, M]
@@ -95,7 +93,7 @@ c = c.permute(1,2,3,0) # shape of [N, F, J, M]
 d = sio.loadmat('data/v.mat')
 vj = torch.tensor(d['v'])
 pwr = torch.ones(1, 3)  # signal powers
-max_iter = 101
+max_iter = 81
 
 "initial"
 # vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
@@ -130,7 +128,7 @@ for i in range(max_iter):
     vj = Rsshatnf.diagonal(dim1=-1, dim2=-2).real
     # vhat.imag = vhat.imag - vhat.imag
     loss_rec = []
-    for ii in range(10):
+    for ii in range(100):
         out = gamma.exp()
         out.retain_grad()
         vhat.real = torch.max(out, torch.tensor(1e-30))
@@ -145,6 +143,9 @@ for i in range(max_iter):
         optim_gamma.step()
         torch.cuda.empty_cache()
         loss_rec.append(loss.detach().item())
+        if ii > 5 and abs((loss_rec[-1]-loss_rec[-2])/loss_rec[-2])<1e-3:
+            print(ii)
+            break
     # plt.plot(loss_rec)
     # plt.show()
 
@@ -154,7 +155,7 @@ for i in range(max_iter):
         Rj[j] = Hhat[:, j][..., None] @ Hhat[:, j][..., None].t().conj()
     ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
     
-    if i%30 == 0:
+    if i%40 == 0:
         plt.figure(100)
         plt.plot(ll_traj,'o-')
         plt.show()
@@ -173,5 +174,5 @@ for j in range(J):
     plt.colorbar()
     plt.show()
 
-
+print('spent time: ',time.time() -t)
 # %%

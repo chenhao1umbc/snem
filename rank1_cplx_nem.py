@@ -75,8 +75,8 @@ for epoch in range(opts['n_epochs']):
             Rb = Rb.diagonal(dim1=-1, dim2=-2).diag_embed()
             Rb.imag = Rb.imag - Rb.imag
 
-            # vhat = Rsshatnf.diagonal(dim1=-1, dim2=-2)
-            # vhat.imag = vhat.imag - vhat.imag
+            # vj = Rsshatnf.diagonal(dim1=-1, dim2=-2)
+            # vj.imag = vj.imag - vj.imag
             out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
             for j in range(J):
                 out[..., j] = model[j](g[:,j]).exp().squeeze()
