@@ -70,7 +70,8 @@ def mydet(x):
     try:
         l = torch.linalg.cholesky(x)
     except:
-        l = torch.linalg.cholesky(x + x.real.max()*1e-5*torch.ones(x.shape[:-1], device=x.device).diag_embed())
+        eps = eps = x.abs().max().requires_grad_(False)
+        l = torch.linalg.cholesky(x + eps*1e-5*torch.ones(x.shape[:-1], device=x.device).diag_embed())
         print('low rank happend')
     ll = l.diagonal(dim1=-1, dim2=-2)
     res = torch.ones(s).to(x.device)
@@ -83,5 +84,7 @@ if __name__ == '__main__':
     a, b = torch.rand(3,1), torch.rand(3,1)
     x = (a@a.t() + b@b.t()).cuda()
 
-    ll = torch.linalg.cholesky(x + x.real.max()*1e-5*torch.ones(x.shape[:-1], device=x.device).diag_embed())
+    eps = x.abs().max().requires_grad_(False)
+    ll = torch.linalg.cholesky(x + eps*1e-5*torch.ones(x.shape[:-1], device=x.device).diag_embed())
     l = torch.linalg.cholesky(x)
+# %%
