@@ -10,10 +10,11 @@ I = 3000 # how many samples
 M, N, F, J = 3, 50, 50, 3
 NF = N*F
 opts = {}
-opts['batch_size'] = 64
-opts['EM_iter'] = 150
-opts['lr'] = 0.01
+opts['batch_size'] = 32
+opts['EM_iter'] = 50
+opts['gamma_iter'] = 50
 opts['n_epochs'] = 200
+opts['lr'] = 0.01
 opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
 opts['n_ch'] = 1  
 
@@ -47,7 +48,7 @@ for epoch in range(opts['n_epochs']):
         #%% EM part
         "initial"
         g = gtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda().requires_grad_()
-        optim_gamma = torch.optim.SGD([g], lr= 0.1) 
+        optim_gamma = torch.optim.SGD([g], lr= 0.05) 
 
         x = x.cuda()
         vhat = torch.randn(opts['batch_size'], N, F, J).abs().to(torch.cdouble).cuda()
@@ -77,16 +78,22 @@ for epoch in range(opts['n_epochs']):
 
             # vj = Rsshatnf.diagonal(dim1=-1, dim2=-2)
             # vj.imag = vj.imag - vj.imag
-            out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
-            for j in range(J):
-                out[..., j] = model[j](g[:,j]).exp().squeeze()
-            vhat.real = torch.min(torch.max(out, torch.tensor(1e-20)), torch.tensor(1e3))
-            loss = loss_func(vhat, Rsshatnf.cuda())
-            optim_gamma.zero_grad()   
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_([g], max_norm=100)
-            optim_gamma.step()
-            torch.cuda.empty_cache()
+            
+            loss_rec = []
+            for iii in range(opts['gamma_iter']):
+                out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
+                for j in range(J):
+                    out[..., j] = model[j](g[:,j]).exp().squeeze()
+                vhat.real = torch.min(torch.max(out, torch.tensor(1e-20)), torch.tensor(1e3))
+                loss = loss_func(vhat, Rsshatnf.cuda())
+                optim_gamma.zero_grad()   
+                loss.backward(retain_graph=True)
+                torch.nn.utils.clip_grad_norm_([g], max_norm=100)
+                optim_gamma.step()
+                torch.cuda.empty_cache()
+                loss_rec.append(loss.detach().item())
+                if iii > 3 and abs((loss_rec[-1]-loss_rec[-2])/loss_rec[-2])<1e-3:
+                    break
             
             "compute log-likelyhood"
             vhat = vhat.detach()
@@ -94,7 +101,7 @@ for epoch in range(opts['n_epochs']):
                 Rj[:, j] = Hhat[..., j][..., None] @ Hhat[..., j][..., None].transpose(-1,-2).conj()
             ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
             if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
-            if ii > 20 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
+            if ii > 10 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
                 print(f'EM early stop at iter {ii}, batch {i}, epoch {epoch}')
                 break
         
