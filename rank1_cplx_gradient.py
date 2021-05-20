@@ -93,7 +93,7 @@ c = c.permute(1,2,3,0) # shape of [N, F, J, M]
 d = sio.loadmat('data/v.mat')
 vj = torch.tensor(d['v'])
 pwr = torch.ones(1, 3)  # signal powers
-max_iter = 81
+max_iter = 2001
 
 "initial"
 # vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
@@ -128,7 +128,7 @@ for i in range(max_iter):
     vj = Rsshatnf.diagonal(dim1=-1, dim2=-2).real
     # vhat.imag = vhat.imag - vhat.imag
     loss_rec = []
-    for ii in range(100):
+    for ii in range(1):
         out = gamma.exp()
         out.retain_grad()
         vhat.real = torch.max(out, torch.tensor(1e-30))
@@ -153,7 +153,10 @@ for i in range(max_iter):
     for j in range(J):
         Rj[j] = Hhat[:, j][..., None] @ Hhat[:, j][..., None].t().conj()
     ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
-    
+    if i > 10 and abs((ll_traj[-1] - ll_traj[-2])/ll_traj[-1]) <1e-3:
+        print(i)
+        break
+
     if i%40 == 0:
         plt.figure(100)
         plt.plot(ll_traj,'o-')

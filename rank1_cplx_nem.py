@@ -10,9 +10,9 @@ I = 3000 # how many samples
 M, N, F, J = 3, 50, 50, 3
 NF = N*F
 opts = {}
-opts['batch_size'] = 32
+opts['batch_size'] = 64
 opts['EM_iter'] = 50
-opts['gamma_iter'] = 50
+opts['gamma_iter'] = 1
 opts['n_epochs'] = 200
 opts['lr'] = 0.01
 opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
@@ -79,21 +79,16 @@ for epoch in range(opts['n_epochs']):
             # vj = Rsshatnf.diagonal(dim1=-1, dim2=-2)
             # vj.imag = vj.imag - vj.imag
             
-            loss_rec = []
-            for iii in range(opts['gamma_iter']):
-                out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
-                for j in range(J):
-                    out[..., j] = model[j](g[:,j]).exp().squeeze()
-                vhat.real = torch.min(torch.max(out, torch.tensor(1e-20)), torch.tensor(1e3))
-                loss = loss_func(vhat, Rsshatnf.cuda())
-                optim_gamma.zero_grad()   
-                loss.backward(retain_graph=True)
-                torch.nn.utils.clip_grad_norm_([g], max_norm=100)
-                optim_gamma.step()
-                torch.cuda.empty_cache()
-                loss_rec.append(loss.detach().item())
-                if iii > 3 and abs((loss_rec[-1]-loss_rec[-2])/loss_rec[-2])<1e-3:
-                    break
+            out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
+            for j in range(J):
+                out[..., j] = model[j](g[:,j]).exp().squeeze()
+            vhat.real = torch.min(torch.max(out, torch.tensor(1e-20)), torch.tensor(1e3))
+            loss = loss_func(vhat, Rsshatnf.cuda())
+            optim_gamma.zero_grad()   
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_([g], max_norm=100)
+            optim_gamma.step()
+            torch.cuda.empty_cache()
             
             "compute log-likelyhood"
             vhat = vhat.detach()
@@ -133,7 +128,7 @@ for epoch in range(opts['n_epochs']):
             out[..., j] = model[j](g[:,j]).exp().squeeze()
             optimizer[j].zero_grad() 
         vhat.real = torch.min(torch.max(out, torch.tensor(1e-20)), torch.tensor(1e3))
-        loss = loss_func(vhat, Rsshatnf.cuda())
+        loss = calc_ll_cpx2(x, vhat, Rj, Rb)
         loss.backward()
         for j in range(J):
             torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=100)
@@ -151,4 +146,17 @@ for epoch in range(opts['n_epochs']):
     plt.title(f'Loss fuction at epoch{epoch}')
     plt.show()
 
+# %%
+for r in range(5):
+    out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
+    for j in range(J):
+        out[..., j] = model[j](g[:,j]).exp().squeeze()
+    loss = loss_func(vhat, Rsshatnf.cuda())
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_([g], max_norm=100)
+    with torch.no_grad():   
+        g = g - 0.01*g.grad  # w requires_grad is set to False
+    g.requires_grad_()
+    del loss
+    torch.cuda.empty_cache()
 # %%
