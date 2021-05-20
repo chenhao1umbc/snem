@@ -126,7 +126,7 @@ for epoch in range(opts['n_epochs']):
             out[..., j] = model[j](g[:,j]).exp().squeeze()
             optimizer[j].zero_grad() 
         vhat.real = torch.min(torch.max(out, torch.tensor(1e-20)), torch.tensor(1e3))
-        loss = calc_ll_cpx2(x, vhat, Rj, Rb)
+        loss = -calc_ll_cpx2(x, vhat, Rj, Rb)
         loss.backward()
         for j in range(J):
             torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=100)
