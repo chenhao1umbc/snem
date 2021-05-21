@@ -82,10 +82,10 @@ def mydet(x):
 def threshold(x, floor=1e-20, ceiling=1e3):
     y = torch.min(torch.max(x, torch.tensor(floor)), torch.tensor(ceiling))
     return y
-    
+
 #%%
 if __name__ == '__main__':
-    a, b = torch.rand(3,1), torch.rand(3,1)
+    a, b = torch.rand(3,1).double(), torch.rand(3,1).double()
     x = (a@a.t() + b@b.t()).cuda()
 
     eps = x.abs().max().requires_grad_(False)
