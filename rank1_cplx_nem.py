@@ -6,13 +6,13 @@ torch.set_printoptions(linewidth=160)
 torch.set_default_dtype(torch.double)
 
 #%% load data
-I = 3000 # how many samples
+I = 300 # how many samples
 M, N, F, J = 3, 50, 50, 3
 NF = N*F
 opts = {}
 opts['batch_size'] = 64
 opts['EM_iter'] = 150
-opts['n_epochs'] = 200
+opts['n_epochs'] = 100
 opts['lr'] = 0.01
 opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
 opts['n_ch'] = 1  
@@ -80,20 +80,27 @@ for epoch in range(opts['n_epochs']):
             out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
             for j in range(J):
                 out[..., j] = model[j](g[:,j]).exp().squeeze()
-            vhat.real = torch.min(torch.max(out, torch.tensor(1e-20)), torch.tensor(1e3))
+            vhat.real = threshold(out)
+            print((out -vhat.real).norm(), 'if changed')
             loss = loss_func(vhat, Rsshatnf.cuda())
             optim_gamma.zero_grad()   
             loss.backward()
             torch.nn.utils.clip_grad_norm_([g], max_norm=100)
             optim_gamma.step()
             torch.cuda.empty_cache()
-            
+            for j in range(J):
+                out[..., j] = model[j](g[:,j].detach()).exp().squeeze()
+            loss_after = loss_func(threshold(out.detach()), Rsshatnf.cuda())
+            print(loss.detach().real - loss_after.real, ' loss diff')
+
             "compute log-likelyhood"
             vhat = vhat.detach()
             for j in range(J):
                 Rj[:, j] = Hhat[..., j][..., None] @ Hhat[..., j][..., None].transpose(-1,-2).conj()
-            ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
+            ll_traj.append(calc_ll_cpx2(x, threshold(out.detach()).to(torch.cdouble), Rj, Rb).item())
             if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
+            if ii > 3 and ll_traj[-1] < ll_traj[-2]:
+                input('descreasing happened')
             if ii > 10 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
                 print(f'EM early stop at iter {ii}, batch {i}, epoch {epoch}')
                 break
