@@ -44,6 +44,24 @@ def loss_func(vhat, Rsshatnf):
     loss = p1 + p2.sum()
     return loss.sum()
 
+def loss_func2(x, vhat, Rj, Rb, Hhat):
+    """ Rj shape of [I, J, M, M]
+        vhat shape of [I, N, F, J]
+        Rb shape of [I, M, M]
+        x shape of [I, N, F, M]
+    """
+    _, _, M, M = Rj.shape
+    I, N, F, J = vhat.shape
+    Rcj = vhat.reshape(I, N*F, J) @ Rj.reshape(I, J, M*M)
+    Rcj = Rcj.reshape(I, N, F, M, M).permute(1,2,0,3,4)
+    Rx = (Rcj + Rb).permute(2,0,1,3,4) # shape of [I, N, F, M, M]
+    Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
+    Rx0 = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb # shape of [I, N, F, J, J]
+    # print((Rx-Rx0.permute(2,0,1,3,4)).norm())
+    l = -(np.pi*mydet(Rx)).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
+    return l.sum().real
+
+
 def calc_ll_cpx2(x, vhat, Rj, Rb):
     """ Rj shape of [I, J, M, M]
         vhat shape of [I, N, F, J]
@@ -57,6 +75,7 @@ def calc_ll_cpx2(x, vhat, Rj, Rb):
     Rx = (Rcj + Rb).permute(2,0,1,3,4) # shape of [I, N, F, M, M]
     l = -(np.pi*mydet(Rx)).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
     return l.sum().real
+
 
 def mydet(x):
     """calc determinant of tensor for the last 2 dimensions,
@@ -79,9 +98,11 @@ def mydet(x):
         res = res * ll[..., i]**2
     return res
 
+
 def threshold(x, floor=1e-20, ceiling=1e3):
     y = torch.min(torch.max(x, torch.tensor(floor)), torch.tensor(ceiling))
     return y
+
 
 #%%
 if __name__ == '__main__':

@@ -81,11 +81,11 @@ for epoch in range(opts['n_epochs']):
             for j in range(J):
                 out[..., j] = model[j](g[:,j]).exp().squeeze()
             vhat.real = threshold(out)
-            print((out -vhat.real).norm(), 'if changed')
+            print((out -vhat.real).norm().detach(), 'if changed')
             loss = loss_func(vhat, Rsshatnf.cuda())
             optim_gamma.zero_grad()   
             loss.backward()
-            torch.nn.utils.clip_grad_norm_([g], max_norm=100)
+            torch.nn.utils.clip_grad_norm_([g], max_norm=10)
             optim_gamma.step()
             torch.cuda.empty_cache()
             for j in range(J):
@@ -99,8 +99,10 @@ for epoch in range(opts['n_epochs']):
                 Rj[:, j] = Hhat[..., j][..., None] @ Hhat[..., j][..., None].transpose(-1,-2).conj()
             ll_traj.append(calc_ll_cpx2(x, threshold(out.detach()).to(torch.cdouble), Rj, Rb).item())
             if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
-            if ii > 3 and ll_traj[-1] < ll_traj[-2]:
-                input('descreasing happened')
+            # if i == 1:
+            #     temp = loss_func2(x, vhat, Rj, Rb, Hhat)
+            if ii > 3 and ll_traj[-1] < ll_traj[-2]  and  abs((ll_traj[-2] - ll_traj[-1])/ll_traj[-2])>0.1 :
+                input('large descreasing happened')
             if ii > 10 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
                 print(f'EM early stop at iter {ii}, batch {i}, epoch {epoch}')
                 break
@@ -152,3 +154,8 @@ for epoch in range(opts['n_epochs']):
     plt.show()
 
 #%%
+plt.imshow(vv[0,:,:,1].real.cpu())
+plt.colorbar()
+
+plt.imshow(vhat[0,:,:,1].real.cpu())
+plt.colorbar()
