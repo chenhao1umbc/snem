@@ -44,22 +44,17 @@ def loss_func(vhat, Rsshatnf):
     loss = p1 + p2.sum()
     return loss.sum()
 
-def loss_func2(x, vhat, Rj, Rb, Hhat):
-    """ Rj shape of [I, J, M, M]
+def log_likelihood(x, vhat, Hhat, Rb):
+    """ Hhat shape of [I, M, J]
         vhat shape of [I, N, F, J]
         Rb shape of [I, M, M]
         x shape of [I, N, F, M]
     """
-    _, _, M, M = Rj.shape
-    I, N, F, J = vhat.shape
-    Rcj = vhat.reshape(I, N*F, J) @ Rj.reshape(I, J, M*M)
-    Rcj = Rcj.reshape(I, N, F, M, M).permute(1,2,0,3,4)
-    Rx = (Rcj + Rb).permute(2,0,1,3,4) # shape of [I, N, F, M, M]
     Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
-    Rx0 = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb # shape of [I, N, F, J, J]
-    # print((Rx-Rx0.permute(2,0,1,3,4)).norm())
+    Rxperm = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb 
+    Rx = Rxperm.permute(2,0,1,3,4) # shape of [I, N, F, M, M]
     l = -(np.pi*mydet(Rx)).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
-    return l.sum().real
+    return l.sum().real, Rs, Rxperm
 
 
 def calc_ll_cpx2(x, vhat, Rj, Rb):

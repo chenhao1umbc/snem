@@ -54,17 +54,15 @@ for epoch in range(opts['n_epochs']):
         Hhat = torch.randn(opts['batch_size'], M, J).to(torch.cdouble).cuda()
         Rb = torch.ones(opts['batch_size'], M).diag_embed().cuda().to(torch.cdouble)*100
         Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((1,2))/NF
-        Rj = torch.zeros(opts['batch_size'], J, M, M).to(torch.cdouble).cuda()
+        Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
+        Rx = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb # shape of [I, N, F, J, J]
         ll_traj = []
 
         for ii in range(opts['EM_iter']):
             "E-step"
-            Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
-            Rx = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb # shape of [I, N, F, J, J]
             W = Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() @ Rx.inverse()  # shape of [N, F, I, J, M]
             shat = W.permute(2,0,1,3,4) @ x[...,None]
             Rsshatnf = shat @ shat.transpose(-1,-2).conj() + Rs - (W@Hhat@Rs.permute(1,2,0,3,4)).permute(2,0,1,3,4)
-
             Rsshat = Rsshatnf.sum([1,2])/NF # shape of [I, J, J]
             Rxshat = (x[..., None] @ shat.transpose(-1,-2).conj()).sum((1,2))/NF # shape of [I, M, J]
 
@@ -95,9 +93,8 @@ for epoch in range(opts['n_epochs']):
 
             "compute log-likelyhood"
             vhat = vhat.detach()
-            for j in range(J):
-                Rj[:, j] = Hhat[..., j][..., None] @ Hhat[..., j][..., None].transpose(-1,-2).conj()
-            ll_traj.append(calc_ll_cpx2(x, threshold(out.detach()).to(torch.cdouble), Rj, Rb).item())
+            ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb)
+            ll_traj.append(ll.item())
             if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
             # if i == 1:
             #     temp = loss_func2(x, vhat, Rj, Rb, Hhat)
@@ -134,8 +131,9 @@ for epoch in range(opts['n_epochs']):
                 param.requires_grad_(True)
             out[..., j] = model[j](g[:,j]).exp().squeeze()
             optimizer[j].zero_grad() 
-        vhat.real = torch.min(torch.max(out, torch.tensor(1e-20)), torch.tensor(1e3))
-        loss = -calc_ll_cpx2(x, vhat, Rj, Rb)
+        vhat.real = threshold(out)
+        ll, *_ = log_likelihood(x, vhat, Hhat, Rb)
+        loss = -ll
         loss.backward()
         for j in range(J):
             torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=100)
@@ -154,8 +152,3 @@ for epoch in range(opts['n_epochs']):
     plt.show()
 
 #%%
-plt.imshow(vv[0,:,:,1].real.cpu())
-plt.colorbar()
-
-plt.imshow(vhat[0,:,:,1].real.cpu())
-plt.colorbar()
