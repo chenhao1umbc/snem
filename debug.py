@@ -218,7 +218,7 @@ x, c = torch.tensor(d['x'], dtype=torch.cdouble), \
 M, N, F, J = c.shape
 NF = N*F
 x = x.permute(1,2,0)  # shape of [N, F, M]
-c = c.permute(1,2,3,0) # shape of [N, F, J, M]
+c = c.permute(1,2,0,3) # shape of [N, F, M, J]
 
 "loade data"
 d = sio.loadmat('data/v.mat')
