@@ -151,9 +151,7 @@ for epoch in range(opts['n_epochs']):
     plt.title(f'Loss fuction at epoch{epoch}')
     plt.show()
 
-#%%
 
-# this file the python version of rank1 model 
 
 #%% loading dependency
 import os
@@ -226,14 +224,14 @@ c = c.permute(1,2,3,0) # shape of [N, F, J, M]
 d = sio.loadmat('data/v.mat')
 vj = torch.tensor(d['v'])
 pwr = torch.ones(1, 3)  # signal powers
-max_iter = 401
+max_iter = 201
 
 "initial"
-# vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
-# Hhat = torch.randn(M, J).to(torch.cdouble)
-d = sio.loadmat('data/vhat_Hhat.mat')
-vhat, Hhat = torch.tensor(d['vhat']).to(torch.cdouble), torch.tensor(d['Hhat'])
-Rb = torch.eye(M).to(torch.cdouble)*100
+vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
+Hhat = torch.randn(M, J).to(torch.cdouble)
+# d = sio.loadmat('data/vhat_Hhat.mat')
+# vhat, Hhat = torch.tensor(d['vhat']).to(torch.cdouble), torch.tensor(d['Hhat'])
+Rb = torch.eye(M).to(torch.cdouble)*1e2
 Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
 Rj = torch.zeros(J, M, M).to(torch.cdouble)
 ll_traj = []
@@ -252,7 +250,7 @@ for i in range(max_iter):
     "M-step"
     vhat = Rsshatnf.diagonal(dim1=-1, dim2=-2)
     vhat.imag = vhat.imag - vhat.imag
-    print('max, mean, median', vhat.real.max(), vhat.real.mean(), vhat.real.median())
+    # print('max, mean, median', vhat.real.max(), vhat.real.mean(), vhat.real.median())
     Hhat = Rxshat @ Rsshat.inverse()
     Rb = Rxxhat - Hhat@Rxshat.t().conj() - \
         Rxshat@Hhat.t().conj() + Hhat@Rsshat@Hhat.t().conj()
@@ -283,4 +281,4 @@ for j in range(J):
     plt.show()
 
 
-#%% Neural EM algorithm
+# %% 
