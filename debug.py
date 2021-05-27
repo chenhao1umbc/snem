@@ -211,27 +211,37 @@ def mydet(x):
         res = res * ll[..., i]**2
     return res
 
-"reproduce the Matlab result"
-d = sio.loadmat('data/x1M3_cpx.mat')
-x, c = torch.tensor(d['x'], dtype=torch.cdouble), \
-    torch.tensor(d['c'], dtype=torch.cdouble)
-M, N, F, J = c.shape
-NF = N*F
-x = x.permute(1,2,0)  # shape of [N, F, M]
-c = c.permute(1,2,0,3) # shape of [N, F, M, J]
 
 "loade data"
 d = sio.loadmat('data/v.mat')
-vj = torch.tensor(d['v'])
-pwr = torch.ones(1, 3)  # signal powers
+vj = torch.tensor(d['v']).to(torch.cdouble)
+pwr = torch.tensor([1,1,1])  # signal powers
 max_iter = 201
 
+"reproduce the Matlab result"
+# d = sio.loadmat('data/x1M3_cpx.mat')
+# x, c = torch.tensor(d['x'], dtype=torch.cdouble), \
+#     torch.tensor(d['c'], dtype=torch.cdouble)
+# M, N, F, J = c.shape
+# NF = N*F
+# x = x.permute(1,2,0)  # shape of [N, F, M]
+# c = c.permute(1,2,0,3) # shape of [N, F, M, J]
+
+nvar = 1e-6
+N, F, J = vj.shape
+theta = torch.tensor([213, 58, 35])*np.pi/180
+M = 3
+h = torch.exp(-1j*np.pi*torch.arange(M)[...,None]*torch.sin(theta)[None,...])
+s = torch.randn(N, F, J, dtype=torch.cdouble)/(2**0.5)*((vj*pwr)**0.5)
+c = s[...,None] * h.t()  #shape of N,F,J,M
+x = c.sum(-2) + torch.randn(N, F, M, dtype=torch.cdouble)/(2**0.5)*(nvar**0.5)
+
 "initial"
-vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
-Hhat = torch.randn(M, J).to(torch.cdouble)
 # d = sio.loadmat('data/vhat_Hhat.mat')
 # vhat, Hhat = torch.tensor(d['vhat']).to(torch.cdouble), torch.tensor(d['Hhat'])
-Rb = torch.eye(M).to(torch.cdouble)*1e2
+vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
+Hhat = torch.randn(M, J, dtype=torch.cdouble)
+Rb = torch.eye(M).to(torch.cdouble)*1e1
 Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
 Rj = torch.zeros(J, M, M).to(torch.cdouble)
 ll_traj = []
@@ -275,7 +285,7 @@ for j in range(J):
     plt.colorbar()
     
     plt.subplot(1,2,2)
-    plt.imshow(vj[:,:,j])
+    plt.imshow(vj[:,:,j].real)
     plt.title('Ground-truth')
     plt.colorbar()
     plt.show()
