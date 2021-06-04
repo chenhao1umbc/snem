@@ -22,7 +22,7 @@ print('done loading')
 
 
 #%% functions
-def loss_func(vhat, Rsshatnf):
+def loss_func(vhat, Rsshatnf, lamb=0):
     """This function is only the Q1 part, which is related to vj
         Q= Q1 + Q2, Q1 = \sum_nf -log(|Rs(n,f)|) - tr{Rsshat_old(n,f)Rs^-1(n,f))}
         loss = -Q1
@@ -41,10 +41,10 @@ def loss_func(vhat, Rsshatnf):
         det_Rs = det_Rs * vhat[..., j]
     p1 = det_Rs.log().sum() 
     p2 = Rsshatnf.diagonal(dim1=-1, dim2=-2)/vhat
-    loss = p1 + p2.sum()
+    loss = p1 + p2.sum() + lamb*vhat.abs().sum()
     return loss.sum()
 
-def log_likelihood(x, vhat, Hhat, Rb):
+def log_likelihood(x, vhat, Hhat, Rb, lamb=0):
     """ Hhat shape of [I, M, J]
         vhat shape of [I, N, F, J]
         Rb shape of [I, M, M]
@@ -53,7 +53,8 @@ def log_likelihood(x, vhat, Hhat, Rb):
     Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
     Rxperm = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb 
     Rx = Rxperm.permute(2,0,1,3,4) # shape of [I, N, F, M, M]
-    l = -(np.pi*mydet(Rx)).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
+    l = lamb*vhat.abs().sum() -(np.pi*mydet(Rx)).log() - \
+        (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze() 
     return l.sum().real, Rs, Rxperm
 
 

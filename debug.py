@@ -18,7 +18,7 @@ opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
 opts['n_ch'] = 1  
 
 # x = torch.rand(I, N, F, M, dtype=torch.cdouble)
-data = sio.loadmat('data/x3000M3_shift.mat')
+data = sio.loadmat('data/x3000M3.mat')
 x = torch.tensor(data['x'], dtype=torch.cdouble).permute(0,2,3,1) # [sample, N, F, channel]
 gamma = torch.rand(I, J, 1, opts['d_gamma'], opts['d_gamma'])
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
@@ -47,11 +47,11 @@ for epoch in range(opts['n_epochs']):
         #%% EM part
         "initial"
         g = gtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda().requires_grad_()
-        optim_gamma = torch.optim.SGD([g], lr= 0.05) 
+        optim_gamma = torch.optim.SGD([g], lr= 0.01) 
 
         x = x.cuda()
         vhat = torch.randn(opts['batch_size'], N, F, J).abs().to(torch.cdouble).cuda()
-        Hhat = torch.randn(opts['batch_size'], M, J).to(torch.cdouble).cuda()
+        Hhat = torch.randn(opts['batch_size'], M, J).to(torch.cdouble).cuda()*100
         Rb = torch.ones(opts['batch_size'], M).diag_embed().cuda().to(torch.cdouble)*100
         Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((1,2))/NF
         Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
@@ -103,7 +103,7 @@ for epoch in range(opts['n_epochs']):
             if ii > 10 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
                 print(f'EM early stop at iter {ii}, batch {i}, epoch {epoch}')
                 break
-        
+        print('one batch is done')
         if i == 0 :
             plt.plot(ll_traj, '-x')
             plt.title(f'the log-likelihood of the first batch at epoch {epoch}')
@@ -136,7 +136,7 @@ for epoch in range(opts['n_epochs']):
         loss = -ll
         loss.backward()
         for j in range(J):
-            torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=100)
+            torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=1)
             optimizer[j].step()
             torch.cuda.empty_cache()
         loss_iter.append(loss.detach().cpu().item())
@@ -230,7 +230,7 @@ max_iter = 201
 nvar = 1e-6
 N, F, J = vj.shape
 theta = torch.tensor([213, 58, 35])*np.pi/180
-M = 3
+M, NF = 3, N*F
 h = torch.exp(-1j*np.pi*torch.arange(M)[...,None]*torch.sin(theta)[None,...])
 s = torch.randn(N, F, J, dtype=torch.cdouble)/(2**0.5)*((vj*pwr)**0.5)
 c = s[...,None] * h.t()  #shape of N,F,J,M
@@ -241,7 +241,7 @@ x = c.sum(-2) + torch.randn(N, F, M, dtype=torch.cdouble)/(2**0.5)*(nvar**0.5)
 # vhat, Hhat = torch.tensor(d['vhat']).to(torch.cdouble), torch.tensor(d['Hhat'])
 vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
 Hhat = torch.randn(M, J, dtype=torch.cdouble)
-Rb = torch.eye(M).to(torch.cdouble)*1e1
+Rb = torch.eye(M).to(torch.cdouble)*1e2
 Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
 Rj = torch.zeros(J, M, M).to(torch.cdouble)
 ll_traj = []
@@ -260,7 +260,7 @@ for i in range(max_iter):
     "M-step"
     vhat = Rsshatnf.diagonal(dim1=-1, dim2=-2)
     vhat.imag = vhat.imag - vhat.imag
-    # print('max, mean, median', vhat.real.max(), vhat.real.mean(), vhat.real.median())
+    # print(vhat[:,:,0].flatten()[1424], vhat[:,:,0].real.argmax())
     Hhat = Rxshat @ Rsshat.inverse()
     Rb = Rxxhat - Hhat@Rxshat.t().conj() - \
         Rxshat@Hhat.t().conj() + Hhat@Rsshat@Hhat.t().conj()
