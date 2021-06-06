@@ -290,5 +290,7 @@ for j in range(J):
     plt.colorbar()
     plt.show()
 
-
+# torch.save(model, '../models/model')
 # %% 
+# model = torch.load('../models/model')
+# %%
