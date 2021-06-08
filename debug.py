@@ -237,7 +237,6 @@ for i, x in enumerate(xcv[:3]): # gamma [n_batch, 4, 4]
 
 
 
-
 # %% reguler EM
 for i, x in enumerate(xcv[:3]):
     shat, Hhat, vhat, Rb = em_func(x)
@@ -261,5 +260,3 @@ for i, x in enumerate(xcv[:3]):
         plt.colorbar()
         plt.show()
 
-
-# %%
