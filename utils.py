@@ -100,6 +100,91 @@ def threshold(x, floor=1e-20, ceiling=1e3):
     return y
 
 
+
+def em_func(x, J=3, Hscal=1, Rbscale=100, max_iter=201, show_plot=False):
+    max_iter = max_iter
+
+    #  EM algorithm for one complex sample
+    def calc_ll_cpx2(x, vhat, Rj, Rb):
+        """ Rj shape of [J, M, M]
+            vhat shape of [N, F, J]
+            Rb shape of [M, M]
+            x shape of [N, F, M]
+        """
+        _, M, M = Rj.shape
+        N, F, J = vhat.shape
+        Rcj = vhat.reshape(N*F, J) @ Rj.reshape(J, M*M)
+        Rcj = Rcj.reshape(N, F, M, M)
+        Rx = Rcj + Rb 
+        # l = -(np.pi*Rx.det()).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
+        l = -(np.pi*mydet(Rx)).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
+        return l.sum()
+
+    def mydet(x):
+        """calc determinant of tensor for the last 2 dimensions,
+        suppose x is postive definite hermitian matrix
+
+        Args:
+            x ([pytorch tensor]): [shape of [..., N, N]]
+        """
+        s = x.shape[:-2]
+        N = x.shape[-1]
+        l = torch.linalg.cholesky(x)
+        ll = l.diagonal(dim1=-1, dim2=-2)
+        res = torch.ones(s).to(x.device)
+        for i in range(N):
+            res = res * ll[..., i]**2
+        return res
+
+    N, F, M = x.shape
+    NF= N*F
+    vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
+    Hhat = torch.randn(M, J, dtype=torch.cdouble)*Hscal
+    Rb = torch.eye(M).to(torch.cdouble)*Rbscale
+    Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
+    Rj = torch.zeros(J, M, M).to(torch.cdouble)
+    ll_traj = []
+
+    for i in range(max_iter):
+        "E-step"
+        Rs = vhat.diag_embed()
+        Rx = Hhat @ Rs @ Hhat.t().conj() + Rb
+        W = Rs @ Hhat.t().conj() @ Rx.inverse()
+        shat = W @ x[...,None]
+        Rsshatnf = shat @ shat.transpose(-1,-2).conj() + Rs - W@Hhat@Rs
+
+        Rsshat = Rsshatnf.sum([0,1])/NF
+        Rxshat = (x[..., None] @ shat.transpose(-1,-2).conj()).sum((0,1))/NF
+
+        "M-step"
+        vhat = Rsshatnf.diagonal(dim1=-1, dim2=-2)
+        vhat.imag = vhat.imag - vhat.imag
+        # print(vhat[:,:,0].flatten()[1424], vhat[:,:,0].real.argmax())
+        Hhat = Rxshat @ Rsshat.inverse()
+        Rb = Rxxhat - Hhat@Rxshat.t().conj() - \
+            Rxshat@Hhat.t().conj() + Hhat@Rsshat@Hhat.t().conj()
+        Rb = Rb.diag().diag()
+        Rb.imag = Rb.imag - Rb.imag
+
+        "compute log-likelyhood"
+        for j in range(J):
+            Rj[j] = Hhat[:, j][..., None] @ Hhat[:, j][..., None].t().conj()
+        ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
+
+    if show_plot:
+        plt.figure(100)
+        plt.plot(ll_traj,'o-')
+        plt.show()
+        "display results"
+        for j in range(J):
+            plt.figure(j)
+            plt.subplot(1,2,1)
+            plt.imshow(vhat[:,:,j].real)
+            plt.colorbar()
+
+    return shat, Hhat, Rb
+
+
 #%%
 if __name__ == '__main__':
     a, b = torch.rand(3,1).double(), torch.rand(3,1).double()
