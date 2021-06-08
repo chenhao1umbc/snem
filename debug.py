@@ -6,7 +6,7 @@ torch.set_printoptions(linewidth=160)
 torch.set_default_dtype(torch.double)
 
 #%% load data
-I = 300 # how many samples
+I = 200 # how many samples
 M, N, F, J = 3, 50, 50, 3
 NF = N*F
 opts = {}
@@ -27,6 +27,7 @@ data = Data.TensorDataset(xtr)
 tr = Data.DataLoader(data, batch_size=opts['batch_size'], drop_last=True)
 
 #%% neural EM
+lamb = 0
 model, optimizer = {}, {}
 loss_iter, loss_tr = [], []
 for j in range(J):
@@ -79,7 +80,7 @@ for epoch in range(opts['n_epochs']):
             for j in range(J):
                 out[..., j] = model[j](g[:,j]).exp().squeeze()
             vhat.real = threshold(out)
-            print((out -vhat.real).norm().detach(), 'if changed')
+            # print((out -vhat.real).norm().detach(), 'if changed')
             loss = loss_func(vhat, Rsshatnf.cuda())
             optim_gamma.zero_grad()   
             loss.backward()
@@ -88,16 +89,14 @@ for epoch in range(opts['n_epochs']):
             torch.cuda.empty_cache()
             for j in range(J):
                 out[..., j] = model[j](g[:,j].detach()).exp().squeeze()
-            loss_after = loss_func(threshold(out.detach()), Rsshatnf.cuda())
-            print(loss.detach().real - loss_after.real, ' loss diff')
+            # loss_after = loss_func(threshold(out.detach()), Rsshatnf.cuda())
+            # print(loss.detach().real - loss_after.real, ' loss diff')
 
             "compute log-likelyhood"
             vhat = vhat.detach()
             ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb)
             ll_traj.append(ll.item())
             if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
-            # if i == 1:
-            #     temp = loss_func2(x, vhat, Rj, Rb, Hhat)
             if ii > 3 and ll_traj[-1] < ll_traj[-2]  and  abs((ll_traj[-2] - ll_traj[-1])/ll_traj[-2])>0.1 :
                 input('large descreasing happened')
             if ii > 10 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
@@ -241,7 +240,7 @@ x = c.sum(-2) + torch.randn(N, F, M, dtype=torch.cdouble)/(2**0.5)*(nvar**0.5)
 # vhat, Hhat = torch.tensor(d['vhat']).to(torch.cdouble), torch.tensor(d['Hhat'])
 vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
 Hhat = torch.randn(M, J, dtype=torch.cdouble)
-Rb = torch.eye(M).to(torch.cdouble)*1e2
+Rb = torch.eye(M).to(torch.cdouble)*1e4
 Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
 Rj = torch.zeros(J, M, M).to(torch.cdouble)
 ll_traj = []
@@ -284,13 +283,12 @@ for j in range(J):
     plt.imshow(vhat[:,:,j].real)
     plt.colorbar()
     
-    plt.subplot(1,2,2)
-    plt.imshow(vj[:,:,j].real)
-    plt.title('Ground-truth')
-    plt.colorbar()
-    plt.show()
+    # plt.subplot(1,2,2)
+    # plt.imshow(vj[:,:,j].real)
+    # plt.title('Ground-truth')
+    # plt.colorbar()
+    # plt.show()
 
-# torch.save(model, '../models/model')
-# %% 
-# model = torch.load('../models/model')
+
+
 # %%
