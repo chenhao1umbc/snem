@@ -6,7 +6,7 @@ torch.set_printoptions(linewidth=160)
 torch.set_default_dtype(torch.double)
 
 #%% load data
-I = 200 # how many samples
+I = 3000 # how many samples
 M, N, F, J = 3, 50, 50, 3
 NF = N*F
 opts = {}
@@ -150,8 +150,116 @@ for epoch in range(opts['n_epochs']):
     plt.title(f'Loss fuction at epoch{epoch}')
     plt.show()
 
-#%%
-from utils import *
-shat, Hhat, Rb = em_func(x)
+
+#%% test part
+opts['EM_iter'] = 300
+Hscale, Rbscale = 100, 1e4
+models = torch.load('data/models/model_200data_50epoch_1e4Rb_v2.pt')
+optimizer = {}
+for j in range(J):
+    models[j].eval()
+    for param in models[j].parameters():
+            param.requires_grad_(False)
+        
+for i, x in enumerate(xcv[:3]): # gamma [n_batch, 4, 4]
+    #%% EM part
+    "initial"
+    g = gcv[i].cuda().requires_grad_()
+    optim_gamma = torch.optim.SGD([g], lr= 0.05) 
+
+    x = x.cuda()
+    vhat = torch.randn(1, N, F, J).abs().to(torch.cdouble).cuda()
+    Hhat = torch.randn(1, M, J).to(torch.cdouble).cuda()*Hscale
+    Rb = torch.ones(1, M).diag_embed().cuda().to(torch.cdouble)*Rbscale
+    Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
+    Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
+    Rx = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb # shape of [N,F,I,M,M]
+    ll_traj = []
+
+    for ii in range(opts['EM_iter']):
+        "E-step"
+        W = Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() @ Rx.inverse()  # shape of [N, F, I, J, M]
+        shat = W.permute(2,0,1,3,4) @ x[...,None]
+        Rsshatnf = shat @ shat.transpose(-1,-2).conj() + Rs - (W@Hhat@Rs.permute(1,2,0,3,4)).permute(2,0,1,3,4)
+        Rsshat = Rsshatnf.sum([1,2])/NF # shape of [I, J, J]
+        Rxshat = (x[..., None] @ shat.transpose(-1,-2).conj()).sum((1,2))/NF # shape of [I, M, J]
+
+        "M-step"
+        Hhat = Rxshat @ Rsshat.inverse() # shape of [I, M, J]
+        Rb = Rxxhat - Hhat@Rxshat.transpose(-1,-2).conj() - \
+            Rxshat@Hhat.transpose(-1,-2).conj() + Hhat@Rsshat@Hhat.transpose(-1,-2).conj()
+        Rb = Rb.diagonal(dim1=-1, dim2=-2).diag_embed()
+        Rb.imag = Rb.imag - Rb.imag
+
+        # vj = Rsshatnf.diagonal(dim1=-1, dim2=-2)
+        # vj.imag = vj.imag - vj.imag
+        out = torch.randn(vhat.shape, device='cuda', dtype=torch.double)
+        for j in range(J):
+            out[..., j] = models[j](g[None,j]).exp().squeeze()
+        vhat.real = threshold(out)
+        loss = loss_func(vhat, Rsshatnf.cuda())
+        optim_gamma.zero_grad()   
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_([g], max_norm=10)
+        optim_gamma.step()
+        torch.cuda.empty_cache()
+        
+        "compute log-likelyhood"
+        vhat = vhat.detach()
+        ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb)
+        ll_traj.append(ll.item())
+        if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
+
+    # plot result
+    plt.plot(ll_traj, '-x')
+    plt.title(f'the log-likelihood of validation sample {i}')
+    plt.show()
+
+    plt.imshow(vhat[0,...,0].real.cpu())
+    plt.colorbar()
+    plt.title(f'1st source of vj of validation sample {i}')
+    plt.show()
+    plt.imshow(vhat[0,...,1].real.cpu())
+    plt.colorbar()
+    plt.title(f'2nd source of vj of validation sample {i}')
+    plt.show()
+    plt.imshow(vhat[0,...,2].real.cpu())
+    plt.colorbar()
+    plt.title(f'3rd source of vj of validation sample {i}')
+    plt.show()
+
+    cj = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]
+    for j in range(J):
+        plt.figure()
+        plt.imshow(cj[...,0,j].abs().cpu())
+        plt.colorbar()
+        plt.show()
+
+
+
+
+# %% reguler EM
+for i, x in enumerate(xcv[:3]):
+    shat, Hhat, vhat, Rb = em_func(x)
+    plt.imshow(vhat[...,0].real.cpu())
+    plt.colorbar()
+    plt.title(f'1st source of vj of validation sample {i}')
+    plt.show()
+    plt.imshow(vhat[...,1].real.cpu())
+    plt.colorbar()
+    plt.title(f'2nd source of vj of validation sample {i}')
+    plt.show()
+    plt.imshow(vhat[...,2].real.cpu())
+    plt.colorbar()
+    plt.title(f'3rd source of vj of validation sample {i}')
+    plt.show()
+
+    cj2 = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]
+    for j in range(J):
+        plt.figure()
+        plt.imshow(cj2[...,0,j].abs())
+        plt.colorbar()
+        plt.show()
+
 
 # %%

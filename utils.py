@@ -182,7 +182,7 @@ def em_func(x, J=3, Hscal=1, Rbscale=100, max_iter=201, show_plot=False):
             plt.imshow(vhat[:,:,j].real)
             plt.colorbar()
 
-    return shat, Hhat, Rb
+    return shat, Hhat, vhat, Rb
 
 
 #%%

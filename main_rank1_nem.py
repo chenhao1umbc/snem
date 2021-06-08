@@ -6,7 +6,7 @@ torch.set_printoptions(linewidth=160)
 torch.set_default_dtype(torch.double)
 
 #%% load data
-I = 300 # how many samples
+I = 3000 # how many samples
 M, N, F, J = 3, 50, 50, 3
 NF = N*F
 opts = {}
@@ -145,14 +145,14 @@ for epoch in range(opts['n_epochs']):
 
 #%% test part
 opts['EM_iter'] = 300
-models = torch.load('data/model_200data_50epoch.pt')
+models = torch.load('data/models/model_200data_50epoch.pt')
 optimizer = {}
 for j in range(J):
     models[j].eval()
     for param in models[j].parameters():
             param.requires_grad_(False)
         
-for i, x in enumerate(xcv): # gamma [n_batch, 4, 4]
+for i, x in enumerate(xcv[:5]): # gamma [n_batch, 4, 4]
     #%% EM part
     "initial"
     g = gcv[i].cuda().requires_grad_()
@@ -218,4 +218,17 @@ for i, x in enumerate(xcv): # gamma [n_batch, 4, 4]
     plt.colorbar()
     plt.title(f'3rd source of vj of validation sample {i}')
     plt.show()
+
+
+# %% reguler EM
+for i, x in enumerate(xcv[:5]):
+    shat, Hhat, vhat, Rb = em_func(x)
+    cj2 = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]
+    for j in range(J):
+        plt.figure()
+        plt.imshow(cj2[...,0,j].abs())
+        plt.colorbar()
+        plt.show()
+
+
 # %%
