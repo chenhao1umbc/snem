@@ -18,7 +18,7 @@ opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
 opts['n_ch'] = 1  
 
 # x = torch.rand(I, N, F, M, dtype=torch.cdouble)
-data = sio.loadmat('data/x3000M3.mat')
+data = sio.loadmat('../data/nem_ss/x3000M3.mat')
 x = torch.tensor(data['x'], dtype=torch.cdouble).permute(0,2,3,1) # [sample, N, F, channel]
 gamma = torch.rand(I, J, 1, opts['d_gamma'], opts['d_gamma'])
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
@@ -153,8 +153,9 @@ for epoch in range(opts['n_epochs']):
 
 #%% test part
 opts['EM_iter'] = 300
-Hscale, Rbscale = 100, 1e4
-models = torch.load('data/models/model_200data_50epoch_1e4Rb_v2.pt')
+Hscale, Rbscale = 1, 1e2
+lamb = 1e-1
+models = torch.load('../data/nem_ss/models/model_3000data_3epoch_1Hscale_1e-9lamb.pt')
 optimizer = {}
 for j in range(J):
     models[j].eval()
@@ -200,13 +201,13 @@ for i, x in enumerate(xcv[:3]): # gamma [n_batch, 4, 4]
         loss = loss_func(vhat, Rsshatnf.cuda())
         optim_gamma.zero_grad()   
         loss.backward()
-        torch.nn.utils.clip_grad_norm_([g], max_norm=10)
+        torch.nn.utils.clip_grad_norm_([g], max_norm=1)
         optim_gamma.step()
         torch.cuda.empty_cache()
         
         "compute log-likelyhood"
         vhat = vhat.detach()
-        ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb)
+        ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb, lamb=lamb)
         ll_traj.append(ll.item())
         if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
 
@@ -234,12 +235,16 @@ for i, x in enumerate(xcv[:3]): # gamma [n_batch, 4, 4]
         plt.imshow(cj[...,0,j].abs().cpu())
         plt.colorbar()
         plt.show()
-
+        
+        plt.figure()
+        plt.imshow(cj[...,0,j].abs().log().cpu())
+        plt.colorbar()
+        plt.show()
 
 
 # %% reguler EM
 for i, x in enumerate(xcv[:3]):
-    shat, Hhat, vhat, Rb = em_func(x)
+    shat, Hhat, vhat, Rb = em_func(x,Hscal=1, Rbscale=1e2)
     plt.imshow(vhat[...,0].real.cpu())
     plt.colorbar()
     plt.title(f'1st source of vj of validation sample {i}')
@@ -260,3 +265,10 @@ for i, x in enumerate(xcv[:3]):
         plt.colorbar()
         plt.show()
 
+        plt.figure()
+        plt.imshow(cj2[...,0,j].abs().log())
+        plt.colorbar()
+        plt.show()
+
+
+# %%

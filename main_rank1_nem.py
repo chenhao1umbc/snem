@@ -18,7 +18,7 @@ opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
 opts['n_ch'] = 1  
 
 # x = torch.rand(I, N, F, M, dtype=torch.cdouble)
-data = sio.loadmat('data/x3000M3_shift.mat')
+data = sio.loadmat('../data/nem_ss/x3000M3_shift.mat')
 x = torch.tensor(data['x'], dtype=torch.cdouble).permute(0,2,3,1) # [sample, N, F, channel]
 gamma = torch.rand(I, J, 1, opts['d_gamma'], opts['d_gamma'])
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
@@ -145,7 +145,7 @@ for epoch in range(opts['n_epochs']):
 
 #%% test part
 opts['EM_iter'] = 300
-models = torch.load('data/models/model_200data_50epoch.pt')
+models = torch.load('../data/nem_ss/models/model_200data_50epoch.pt')
 optimizer = {}
 for j in range(J):
     models[j].eval()
