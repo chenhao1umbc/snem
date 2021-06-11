@@ -18,7 +18,7 @@ opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
 opts['n_ch'] = 1  
 
 # x = torch.rand(I, N, F, M, dtype=torch.cdouble)
-data = sio.loadmat('../data/nem_ss/x3000M3.mat')
+data = sio.loadmat('../../Hpython/data/nem_ss/x3000M3.mat')
 x = torch.tensor(data['x'], dtype=torch.cdouble).permute(0,2,3,1) # [sample, N, F, channel]
 gamma = torch.rand(I, J, 1, opts['d_gamma'], opts['d_gamma'])
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
@@ -155,7 +155,7 @@ for epoch in range(opts['n_epochs']):
 opts['EM_iter'] = 300
 Hscale, Rbscale = 1, 1e2
 lamb = 1e-1
-models = torch.load('../data/nem_ss/models/model_3000data_3epoch_1Hscale_1e-9lamb.pt')
+models = torch.load('../../Hpython/data/nem_ss/models/model_3000data_3epoch_1Hscale_1e-9lamb.pt')
 optimizer = {}
 for j in range(J):
     models[j].eval()
@@ -243,19 +243,25 @@ for i, x in enumerate(xcv[:3]): # gamma [n_batch, 4, 4]
 
 
 # %% reguler EM
-for i, x in enumerate(xcv[:3]):
+for i, x in enumerate(xcv[:1]):
     shat, Hhat, vhat, Rb = em_func(x,Hscal=1, Rbscale=1e2)
+    plt.figure()
     plt.imshow(vhat[...,0].real.cpu())
     plt.colorbar()
-    plt.title(f'1st source of vj of validation sample {i}')
+    plt.title(f'1st source of vj of validation sample {i+1}')
+    plt.savefig(f'v1.png')
     plt.show()
+
     plt.imshow(vhat[...,1].real.cpu())
     plt.colorbar()
-    plt.title(f'2nd source of vj of validation sample {i}')
+    plt.title(f'2nd source of vj of validation sample {i+1}')
+    plt.savefig(f'v2.png')
     plt.show()
+
     plt.imshow(vhat[...,2].real.cpu())
     plt.colorbar()
-    plt.title(f'3rd source of vj of validation sample {i}')
+    plt.title(f'3rd source of vj of validation sample {i+1}')
+    plt.savefig(f'v3.png')
     plt.show()
 
     cj2 = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]
@@ -263,12 +269,13 @@ for i, x in enumerate(xcv[:3]):
         plt.figure()
         plt.imshow(cj2[...,0,j].abs())
         plt.colorbar()
+        plt.savefig(f'c{j}.png')
         plt.show()
 
         plt.figure()
         plt.imshow(cj2[...,0,j].abs().log())
         plt.colorbar()
+        plt.savefig(f'log c{j}.png')
         plt.show()
-
 
 # %%
