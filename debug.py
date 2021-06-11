@@ -162,7 +162,7 @@ for j in range(J):
     for param in models[j].parameters():
             param.requires_grad_(False)
         
-for i, x in enumerate(xcv[:3]): # gamma [n_batch, 4, 4]
+for i, x in enumerate(xcv[:1]): # gamma [n_batch, 4, 4]
     #%% EM part
     "initial"
     g = gcv[i].cuda().requires_grad_()
@@ -212,21 +212,30 @@ for i, x in enumerate(xcv[:3]): # gamma [n_batch, 4, 4]
         if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
 
     # plot result
+    plt.figure()
     plt.plot(ll_traj, '-x')
-    plt.title(f'the log-likelihood of validation sample {i}')
+    plt.title(f'the log-likelihood of validation sample {i+1}')
     plt.show()
 
+    plt.figure()
     plt.imshow(vhat[0,...,0].real.cpu())
     plt.colorbar()
-    plt.title(f'1st source of vj of validation sample {i}')
+    plt.title(f'1st source of vj of validation sample {i+1}')
+    plt.savefig(f'v1.png')
     plt.show()
+
+    plt.figure()
     plt.imshow(vhat[0,...,1].real.cpu())
     plt.colorbar()
-    plt.title(f'2nd source of vj of validation sample {i}')
+    plt.title(f'2nd source of vj of validation sample {i+1}')
+    plt.savefig(f'v2.png')
     plt.show()
+
+    plt.figure()
     plt.imshow(vhat[0,...,2].real.cpu())
     plt.colorbar()
-    plt.title(f'3rd source of vj of validation sample {i}')
+    plt.title(f'3rd source of vj of validation sample {i+1}')
+    plt.savefig(f'v3.png')
     plt.show()
 
     cj = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]
@@ -234,11 +243,13 @@ for i, x in enumerate(xcv[:3]): # gamma [n_batch, 4, 4]
         plt.figure()
         plt.imshow(cj[...,0,j].abs().cpu())
         plt.colorbar()
+        plt.savefig(f'c{j}.png')
         plt.show()
         
         plt.figure()
         plt.imshow(cj[...,0,j].abs().log().cpu())
         plt.colorbar()
+        plt.savefig(f'log_c{j}.png')
         plt.show()
 
 
@@ -275,7 +286,7 @@ for i, x in enumerate(xcv[:1]):
         plt.figure()
         plt.imshow(cj2[...,0,j].abs().log())
         plt.colorbar()
-        plt.savefig(f'log c{j}.png')
+        plt.savefig(f'log_c{j}.png')
         plt.show()
 
 # %%
