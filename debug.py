@@ -154,7 +154,7 @@ for epoch in range(opts['n_epochs']):
 #%% test part
 opts['EM_iter'] = 300
 Hscale, Rbscale = 1, 1e2
-lamb = 1e-1
+lamb = 0
 models = torch.load('../../Hpython/data/nem_ss/models/model_3000data_3epoch_1Hscale_1e-9lamb.pt')
 optimizer = {}
 for j in range(J):
@@ -198,7 +198,7 @@ for i, x in enumerate(xcv[:1]): # gamma [n_batch, 4, 4]
         for j in range(J):
             out[..., j] = models[j](g[None,j]).exp().squeeze()
         vhat.real = threshold(out)
-        loss = loss_func(vhat, Rsshatnf.cuda())
+        loss = loss_func(vhat, Rsshatnf.cuda(), lamb=lamb)
         optim_gamma.zero_grad()   
         loss.backward()
         torch.nn.utils.clip_grad_norm_([g], max_norm=1)
@@ -207,7 +207,7 @@ for i, x in enumerate(xcv[:1]): # gamma [n_batch, 4, 4]
         
         "compute log-likelyhood"
         vhat = vhat.detach()
-        ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb, lamb=lamb)
+        ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb)
         ll_traj.append(ll.item())
         if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
 
