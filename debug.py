@@ -155,7 +155,8 @@ for epoch in range(opts['n_epochs']):
 opts['EM_iter'] = 300
 Hscale, Rbscale = 1, 1e2
 lamb = 0
-models = torch.load('../../Hpython/data/nem_ss/models/model_3000data_3epoch_1Hscale_1e-9lamb.pt')
+# models = torch.load('../../Hpython/data/nem_ss/models/model_3000data_3epoch_1Hscale_1e-9lamb.pt')
+models = torch.load('../../Hpython/data/nem_ss/models/model_100H_1e3Rb_31epoch.pt')
 optimizer = {}
 for j in range(J):
     models[j].eval()
@@ -289,4 +290,26 @@ for i, x in enumerate(xcv[:1]):
         plt.savefig(f'log_c{j}.png')
         plt.show()
 
+# %%
+res = []
+r = torch.stack(res)
+rr = r.cpu().reshape(5,-1)
+m = rr.mean(0)
+v = (rr-m).t().conj()@(rr-m)
+v.diag().sum()  #16473 15931.1710
+
+
+# %%
+y = 1
+lamb = -10000
+x = torch.arange(1e-3, 20, 0.001)
+f = -x.log()-y/x + lamb*x
+plt.plot(x, torch.log(-f))
+xx = (0.5/lamb - 0.5*(1-4*lamb*y)**0.5/lamb)
+print(xx)
+# %%
+y = 0.1
+lamb = -torch.arange(1e-9, 20, 0.001)
+xx = (0.5/lamb - 0.5*(1-4*lamb*y)**0.5/lamb)
+plt.plot(xx)
 # %%
