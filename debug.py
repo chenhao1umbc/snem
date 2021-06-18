@@ -291,25 +291,24 @@ for i, x in enumerate(xcv[:1]):
         plt.show()
 
 # %%
-res = []
-r = torch.stack(res)
-rr = r.cpu().reshape(5,-1)
-m = rr.mean(0)
-v = (rr-m).t().conj()@(rr-m)
-v.diag().sum()  #16473 15931.1710
+d = sio.loadmat('../data/nem_ss/100_test_all.mat') 
+"x shape of [I,M,N,F], c [I,M,N,F,J], h [I,M,J]"
+x_all, c_all, h_all = d['x'], d['c_all'], d['h_all']
+I = x_all.shape[0]
+
+for i in range(I-99):
+    c = torch.from_numpy(c_all[i]).permute(1,2,0,3)
+    x = torch.from_numpy(x_all[i])
+
+    r0 = em_func(x, Hscal=1, Rbscale=1e2)
+    shat, Hhat, vhat, Rb = r0
+    cj0 = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]    
+
+    r1 = em_func(x, Hscal=1, Rbscale=1e2, lamb=-0.01)
+    shat, Hhat, vhat, Rb = r1
+    cj1 = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]
 
 
-# %%
-y = 1
-lamb = -10000
-x = torch.arange(1e-3, 20, 0.001)
-f = -x.log()-y/x + lamb*x
-plt.plot(x, torch.log(-f))
-xx = (0.5/lamb - 0.5*(1-4*lamb*y)**0.5/lamb)
-print(xx)
-# %%
-y = 0.1
-lamb = -torch.arange(1e-9, 20, 0.001)
-xx = (0.5/lamb - 0.5*(1-4*lamb*y)**0.5/lamb)
-plt.plot(xx)
+
+
 # %%
