@@ -1,5 +1,4 @@
 #%% load dependency 
-from os import O_EXLOCK
 from utils import *
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 plt.rcParams['figure.dpi'] = 100
