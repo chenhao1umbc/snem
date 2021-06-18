@@ -157,11 +157,11 @@ def em_func(x, J=3, Hscal=1, Rbscale=100, max_iter=201, lamb=0, show_plot=False)
         Rxshat = (x[..., None] @ shat.transpose(-1,-2).conj()).sum((0,1))/NF
 
         "M-step"
-        if lamb>0:
+        if lamb<0:
             raise ValueError('lambda should be negative')
-        elif lamb <0:
+        elif lamb >0:
             y = Rsshatnf.diagonal(dim1=-1, dim2=-2)
-            vhat = (0.5/lamb - 0.5*(1-4*lamb*y)**0.5/lamb)
+            vhat = -0.5/lamb + 0.5*(1+4*lamb*y)**0.5/lamb
         else:
             vhat = Rsshatnf.diagonal(dim1=-1, dim2=-2)
         vhat.imag = vhat.imag - vhat.imag

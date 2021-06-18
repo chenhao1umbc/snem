@@ -304,7 +304,7 @@ for i in range(I-99):
     shat, Hhat, vhat, Rb = r0
     cj0 = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]    
 
-    r1 = em_func(x, Hscal=1, Rbscale=1e2, lamb=-0.01)
+    r1 = em_func(x, Hscal=1, Rbscale=1e2, lamb=0.01)
     shat, Hhat, vhat, Rb = r1
     cj1 = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]
 
