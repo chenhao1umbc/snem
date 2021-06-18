@@ -101,7 +101,7 @@ def threshold(x, floor=1e-20, ceiling=1e3):
 
 
 
-def em_func(x, J=3, Hscal=1, Rbscale=100, max_iter=201, lamb=0, show_plot=False):
+def em_func(x, J=3, Hscal=1, Rbscale=100, max_iter=201, lamb=0, seed=0, show_plot=False):
     max_iter = max_iter
 
     #  EM algorithm for one complex sample
@@ -138,6 +138,7 @@ def em_func(x, J=3, Hscal=1, Rbscale=100, max_iter=201, lamb=0, show_plot=False)
 
     N, F, M = x.shape
     NF= N*F
+    torch.torch.manual_seed(seed)
     vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
     Hhat = torch.randn(M, J, dtype=torch.cdouble)*Hscal
     Rb = torch.eye(M).to(torch.cdouble)*Rbscale

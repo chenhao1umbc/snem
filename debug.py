@@ -1,4 +1,5 @@
 #%% load dependency 
+from os import O_EXLOCK
 from utils import *
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 plt.rcParams['figure.dpi'] = 100
@@ -294,21 +295,21 @@ for i, x in enumerate(xcv[:1]):
 d = sio.loadmat('../data/nem_ss/100_test_all.mat') 
 "x shape of [I,M,N,F], c [I,M,N,F,J], h [I,M,J]"
 x_all, c_all, h_all = d['x'], d['c_all'], d['h_all']
-I = x_all.shape[0]
+d = sio.loadmat('../data/nem_ss/v.mat')
+v = torch.tensor(d['v'], dtype=torch.cdouble) # shape of [N,F,J]
 
+I = x_all.shape[0]
 for i in range(I-99):
     c = torch.from_numpy(c_all[i]).permute(1,2,0,3)
-    x = torch.from_numpy(x_all[i])
+    x = torch.from_numpy(x_all[i]).permute(1,2,0)
 
-    r0 = em_func(x, Hscal=1, Rbscale=1e2)
+    r0 = em_func(x, seed=i)
     shat, Hhat, vhat, Rb = r0
     cj0 = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]    
 
-    r1 = em_func(x, Hscal=1, Rbscale=1e2, lamb=0.01)
+    r1 = em_func(x, seed=i, lamb=0.01, show_plot=True)
     shat, Hhat, vhat, Rb = r1
     cj1 = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]
-
-
 
 
 # %%
