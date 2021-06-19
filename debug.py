@@ -296,19 +296,41 @@ d = sio.loadmat('../data/nem_ss/100_test_all.mat')
 x_all, c_all, h_all = d['x'], d['c_all'], d['h_all']
 d = sio.loadmat('../data/nem_ss/v.mat')
 v = torch.tensor(d['v'], dtype=torch.cdouble) # shape of [N,F,J]
+MSE0, MSE1, CORR0, CORR1 = [], [], [], []
+
+def mse(vh, v):
+    J = v.shape[-1]
+    r = [] 
+    for j in range(J):
+        for jj in range(J):
+            r.append((v[...,j] - vh[...,jj]/vh[...,jj].norm()).norm()**2)
+    r = sorted(r)
+    return sum(r[:J])/J
+
+def corr(vh, v):
+    J = v.shape[-1]
+    r = [] 
+    for j in range(J):
+        for jj in range(J):
+            r.append(stats.pearsonr(v[...,j].flatten(), vh[...,jj].flatten())[0])
+    r = sorted(r, reverse=True)
+    return sum(r[:J])/J
 
 I = x_all.shape[0]
 for i in range(I-99):
     c = torch.from_numpy(c_all[i]).permute(1,2,0,3)
     x = torch.from_numpy(x_all[i]).permute(1,2,0)
+    for ii in range(3):
+        r0 = em_func(x, seed=ii, show_plot=False)
+        shat, Hhat, vhat, Rb = r0
+        MSE0.append(mse(vhat, v))
+        CORR0.append(corr(vhat.real, v.real))
 
-    r0 = em_func(x, seed=i)
-    shat, Hhat, vhat, Rb = r0
-    cj0 = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]    
-
-    r1 = em_func(x, seed=i, lamb=0.01, show_plot=True)
-    shat, Hhat, vhat, Rb = r1
-    cj1 = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]
+        r1 = em_func(x, seed=ii, lamb=0.001, show_plot=False)
+        shat, Hhat, vhat, Rb = r1
+        MSE1.append(mse(vhat, v))
+        CORR1.append(corr(vhat.real, v.real))
+        
 
 
 # %%
