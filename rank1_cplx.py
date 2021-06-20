@@ -1,6 +1,12 @@
-# this file the python version of rank1 model 
+"this file the python version of rank1 model"
+#%% The rank1 model with/out l1 has been wrapped up in a function
+from utils import *
+d = sio.loadmat('../data/nem_ss/x1M3_cpx.mat')
+x, c = torch.tensor(d['x'], dtype=torch.cdouble), \
+    torch.tensor(d['c'], dtype=torch.cdouble)
+shat, Hhat, vhat, Rb = em_func(x, show_plot=False)
 
-#%% loading dependency
+#%% This cell shows, with exactly initialization, python and matlab got the same result
 import os
 import h5py 
 import numpy as np
@@ -76,7 +82,7 @@ max_iter = 401
 "initial"
 # vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
 # Hhat = torch.randn(M, J).to(torch.cdouble)
-d = sio.loadmat('data/vhat_Hhat.mat')
+d = sio.loadmat('../data/nem_ss/vhat_Hhat.mat')
 vhat, Hhat = torch.tensor(d['vhat']).to(torch.cdouble), torch.tensor(d['Hhat'])
 Rb = torch.eye(M).to(torch.cdouble)*100
 Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
