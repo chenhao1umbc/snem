@@ -9,7 +9,6 @@ if True:
     torch.set_printoptions(linewidth=160)
     torch.set_default_dtype(torch.double)
 
-
 #%% load data
     I = 3000 # how many samples
     M, N, F, J = 3, 50, 50, 3
@@ -31,7 +30,7 @@ if True:
     data = Data.TensorDataset(xtr)
     tr = Data.DataLoader(data, batch_size=opts['batch_size'], drop_last=True)
 
-#%% neural EM
+#%% NEM train and debug
     lamb = 0
     model, optimizer = {}, {}
     loss_iter, loss_tr = [], []
@@ -155,7 +154,7 @@ if True:
         plt.title(f'Loss fuction at epoch{epoch}')
         plt.show()
 
-#%% test part
+#%% test part of NEM
     opts['EM_iter'] = 300
     Hscale, Rbscale = 1, 1e2
     lamb = 0
@@ -257,7 +256,7 @@ if True:
             plt.savefig(f'log_c{j}.png')
             plt.show()
 
-# %% reguler EM
+# %% reguler EM test
     for i, x in enumerate(xcv[:1]):
         shat, Hhat, vhat, Rb = em_func(x,Hscal=1, Rbscale=1e2)
         plt.figure()
@@ -293,7 +292,7 @@ if True:
             plt.savefig(f'log_c{j}.png')
             plt.show()
 
-# %% 
+# %% compare EM vs EM_l1
     d = sio.loadmat('../data/nem_ss/100_test_all.mat') 
     "x shape of [I,M,N,F], c [I,M,N,F,J], h [I,M,J]"
     x_all, c_all, h_all = d['x'], d['c_all'], d['h_all']
@@ -337,7 +336,7 @@ if True:
     for lamb in [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000]:
         myfun(x_all, v, lamb=lamb)
 
-# %%
+# %% check the EM vs EM_l1 results
     mse, corr = torch.load('../data/nem_ss/lamb_0.01.pt')
     plt.boxplot(mse, meanline=True)
     plt.boxplot(corr, meanline=True)
