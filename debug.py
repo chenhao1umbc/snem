@@ -1,5 +1,5 @@
 """This is file is coded based on cell mode, 
-if True give each cell has a 4-space indent, that each cell could be folded
+if True give each cell has a 4-space indent, that each cell could be folded in vs code
 """
 #%% load dependency 
 if True:
