@@ -296,14 +296,14 @@ d = sio.loadmat('../data/nem_ss/100_test_all.mat')
 x_all, c_all, h_all = d['x'], d['c_all'], d['h_all']
 d = sio.loadmat('../data/nem_ss/v.mat')
 v = torch.tensor(d['v'], dtype=torch.cdouble) # shape of [N,F,J]
-MSE0, MSE1, CORR0, CORR1 = [], [], [], []
 
 def mse(vh, v):
     J = v.shape[-1]
     r = [] 
     for j in range(J):
         for jj in range(J):
-            r.append((v[...,j] - vh[...,jj]/vh[...,jj].norm()).norm()**2)
+            temp = (v[...,j] - vh[...,jj]/vh[...,jj].norm()).norm()**2
+            r.append(temp.item())
     r = sorted(r)
     return sum(r[:J])/J
 
@@ -316,21 +316,22 @@ def corr(vh, v):
     r = sorted(r, reverse=True)
     return sum(r[:J])/J
 
-I = x_all.shape[0]
-for i in range(I-99):
-    c = torch.from_numpy(c_all[i]).permute(1,2,0,3)
-    x = torch.from_numpy(x_all[i]).permute(1,2,0)
-    for ii in range(3):
-        r0 = em_func(x, seed=ii, show_plot=False)
-        shat, Hhat, vhat, Rb = r0
-        MSE0.append(mse(vhat, v))
-        CORR0.append(corr(vhat.real, v.real))
+def myfun(x_all, v, lamb=0):
+    I = x_all.shape[0]
+    res_mse, res_corr = [], []
+    for i in range(I):
+        x = torch.from_numpy(x_all[i]).permute(1,2,0)
+        MSE, CORR = [], []
+        for ii in range(20):  # for diff initializations
+            shat, Hhat, vhat, Rb = em_func(x, seed=ii, lamb=lamb, show_plot=False)
+            MSE.append(mse(vhat, v))
+            CORR.append(corr(vhat.real, v.real))
+        res_mse.append(MSE)
+        res_corr.append(CORR)
+        print(f'finished {i} samples')
+    torch.save((res_mse, res_corr), f'lamb_{lamb}.pt')
 
-        r1 = em_func(x, seed=ii, lamb=0.001, show_plot=False)
-        shat, Hhat, vhat, Rb = r1
-        MSE1.append(mse(vhat, v))
-        CORR1.append(corr(vhat.real, v.real))
-        
-
+for lamb in [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000]:
+    myfun(x_all, v, lamb=lamb)
 
 # %%
