@@ -5,7 +5,7 @@ if True gives each cell an indent, so that each cell could be folded in vs code
 if True:
     from utils import *
     os.environ["CUDA_VISIBLE_DEVICES"]="0"
-    plt.rcParams['figure.dpi'] = 100
+    plt.rcParams['figure.dpi'] = 150
     torch.set_printoptions(linewidth=160)
     torch.set_default_dtype(torch.double)
 
@@ -333,10 +333,32 @@ if True:
             print(f'finished {i} samples')
         torch.save((res_mse, res_corr), f'lamb_{lamb}.pt')
 
-    for lamb in [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000]:
+    for lamb in [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9]:
         myfun(x_all, v, lamb=lamb)
 
 # %% check the EM vs EM_l1 results
-    mse, corr = torch.load('../data/nem_ss/lamb_0.01.pt')
-    plt.boxplot(mse, meanline=True)
-    plt.boxplot(corr, meanline=True)
+    for lamb in [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9]:
+        mse, corr = torch.load(f'../data/nem_ss/lamb_{lamb}.pt')
+        plt.figure()
+        plt.subplot(2,1,1)
+        plt.plot(range(1, 101), torch.tensor(mse).mean(dim=1))
+        plt.boxplot(mse, showfliers=False)        
+        plt.legend(['Mean is blue'])
+        plt.ylim([340, 360])
+        plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
+        plt.xlabel('Sample index')
+        plt.title(f'MSE result for lambda={lamb}')
+
+        plt.subplot(2,1,2)
+        plt.plot(range(1, 101), torch.tensor(corr).mean(dim=1))
+        plt.boxplot(corr, showfliers=False)        
+        plt.legend(['Mean is blue'])
+        plt.ylim([0.5, 0.8])
+        plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
+        plt.xlabel('Sample index')
+        plt.title(f'Correlation result for lambda={lamb}')
+
+        plt.subplots_adjust(hspace=0.7)
+        plt.show()
+
+# %%
