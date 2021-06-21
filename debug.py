@@ -359,6 +359,59 @@ if True:
         plt.title(f'Correlation result for lambda={lamb}')
 
         plt.subplots_adjust(hspace=0.7)
+        plt.savefig(f'lambda{lamb}.png')
         plt.show()
+
+    m, c = {'mean':[], 'std':[]}, {'mean':[], 'std':[]}
+    for lamb in [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9]:
+        mse, corr = torch.load(f'../data/nem_ss/lamb_{lamb}.pt')
+        m['mean'].append(torch.tensor(mse).mean())
+        m['std'].append(torch.tensor(mse).var()**0.5)
+        c['mean'].append(torch.tensor(corr).mean())
+        c['std'].append(torch.tensor(corr).var()**0.5)
+    plt.figure()
+    plt.plot(range(0,14),m['mean'], '-x')
+    plt.xticks(ticks=range(0,14), \
+        labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
+    plt.xlabel('Lambda')
+    plt.title('Mean of MSE')
+    plt.savefig('Mean of MSE.png')
+
+    plt.figure()
+    plt.xticks(ticks=range(0,14), \
+    labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
+    plt.xlabel('Lambda')
+    plt.plot(m['std'], '-x')
+    plt.title('STD of MSE')
+    plt.savefig('Mean of MSE.png')
+
+    plt.figure()
+    plt.errorbar(range(0,14),m['mean'], m['std'], capsize=4)
+    plt.xticks(ticks=range(0,14), \
+        labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
+    plt.xlabel('Lambda')
+    plt.title('Mean of MSE with std')
+
+
+    plt.figure()
+    plt.plot(c['mean'],'-x')
+    plt.xticks(ticks=range(0,14), \
+    labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
+    plt.xlabel('Lambda')
+    plt.title('Mean of Corr.')
+
+    plt.figure()
+    plt.plot(c['std'], '-x')
+    plt.xticks(ticks=range(0,14), \
+    labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
+    plt.xlabel('Lambda')
+    plt.title('STD of Corr.')
+
+    plt.figure()
+    plt.errorbar(range(0,14),c['mean'], c['std'], capsize=4)
+    plt.xticks(ticks=range(0,14), \
+        labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
+    plt.xlabel('Lambda')
+    plt.title('Mean of MSE with std')
 
 # %%
