@@ -293,6 +293,7 @@ if True:
             plt.show()
 
 # %% compare EM vs EM_l1
+    import itertools
     d = sio.loadmat('../data/nem_ss/100_test_all.mat') 
     "x shape of [I,M,N,F], c [I,M,N,F,J], h [I,M,J]"
     x_all, c_all, h_all = d['x'], d['c_all'], d['h_all']
@@ -302,21 +303,28 @@ if True:
     def mse(vh, v):
         J = v.shape[-1]
         r = [] 
-        for j in range(J):
-            for jj in range(J):
-                temp = (v[...,j] - vh[...,jj]/vh[...,jj].norm()).norm()**2
-                r.append(temp.item())
+        permutes = list(itertools.permutations(list(range(J))))
+        for jj in permutes:
+            temp = vh[...,jj[0]], vh[...,jj[1]], vh[...,jj[2]]
+            s = 0
+            for j in range(J):
+                s = s + (v[...,j] -temp[j]).norm()**2
+            r.append(s.item())
         r = sorted(r)
-        return sum(r[:J])/J
+        return r[0]/J
 
     def corr(vh, v):
         J = v.shape[-1]
         r = [] 
-        for j in range(J):
-            for jj in range(J):
-                r.append(stats.pearsonr(v[...,j].flatten(), vh[...,jj].flatten())[0])
+        permutes = list(itertools.permutations(list(range(J))))
+        for jj in permutes:
+            temp = vh[...,jj[0]], vh[...,jj[1]], vh[...,jj[2]]
+            s = 0
+            for j in range(J):
+                s = s + stats.pearsonr(v[...,j].flatten(), temp[j].flatten())[0]
+            r.append(s)
         r = sorted(r, reverse=True)
-        return sum(r[:J])/J
+        return r[0]/J
 
     def myfun(x_all, v, lamb=0):
         I = x_all.shape[0]
@@ -324,7 +332,7 @@ if True:
         for i in range(I):
             x = torch.from_numpy(x_all[i]).permute(1,2,0)
             MSE, CORR = [], []
-            for ii in range(20):  # for diff initializations
+            for ii in range(3):  # for diff initializations
                 shat, Hhat, vhat, Rb = em_func(x, seed=ii, lamb=lamb, show_plot=False)
                 MSE.append(mse(vhat, v))
                 CORR.append(corr(vhat.real, v.real))
@@ -333,8 +341,8 @@ if True:
             print(f'finished {i} samples')
         torch.save((res_mse, res_corr), f'lamb_{lamb}.pt')
 
-    for lamb in [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9]:
-        myfun(x_all, v, lamb=lamb)
+    for lamb in [0, ]:
+        myfun(x_all[:2], v, lamb=lamb)
 
 # %% check the EM vs EM_l1 results
     for lamb in [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9]:
@@ -383,7 +391,7 @@ if True:
     plt.xlabel('Lambda')
     plt.plot(m['std'], '-x')
     plt.title('STD of MSE')
-    plt.savefig('Mean of MSE.png')
+    plt.savefig('STD of MSE.png')
 
     plt.figure()
     plt.errorbar(range(0,14),m['mean'], m['std'], capsize=4)
@@ -391,6 +399,7 @@ if True:
         labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
     plt.xlabel('Lambda')
     plt.title('Mean of MSE with std')
+    plt.savefig('Mean of MSE with std.png')
 
 
     plt.figure()
@@ -399,6 +408,7 @@ if True:
     labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
     plt.xlabel('Lambda')
     plt.title('Mean of Corr.')
+    plt.savefig('Mean of Corr.png')
 
     plt.figure()
     plt.plot(c['std'], '-x')
@@ -406,12 +416,14 @@ if True:
     labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
     plt.xlabel('Lambda')
     plt.title('STD of Corr.')
+    plt.savefig('STD of Corr.png')
 
     plt.figure()
     plt.errorbar(range(0,14),c['mean'], c['std'], capsize=4)
     plt.xticks(ticks=range(0,14), \
         labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
     plt.xlabel('Lambda')
-    plt.title('Mean of MSE with std')
+    plt.title('Mean of Corr with std')
+    plt.savefig('Mean of Corr with std.png')
 
 # %%
