@@ -347,11 +347,11 @@ if True:
 # %% check the EM vs EM_l1 results
     all_lamb = [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000]
     for lamb in all_lamb:
-        mse, corr = torch.load(f'lamb_{lamb}.pt')
+        mse, corr = torch.load(f'../data/nem_ss/lamb/lamb_{lamb}.pt')
         plt.figure()
         plt.subplot(2,1,1)
         plt.plot(range(1, 101), torch.tensor(mse).mean(dim=1))
-        plt.boxplot(mse, showfliers=True)        
+        plt.boxplot(mse, showfliers=False)        
         plt.legend(['Mean is blue'])
         # plt.ylim([340, 360])
         plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
@@ -360,7 +360,7 @@ if True:
 
         plt.subplot(2,1,2)
         plt.plot(range(1, 101), torch.tensor(corr).mean(dim=1))
-        plt.boxplot(corr, showfliers=True)        
+        plt.boxplot(corr, showfliers=False)        
         plt.legend(['Mean is blue'])
         plt.ylim([0.5, 0.8])
         plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
@@ -373,7 +373,7 @@ if True:
 
     m, c = {'mean':[], 'std':[]}, {'mean':[], 'std':[]}
     for lamb in all_lamb:
-        mse, corr = torch.load(f'lamb_{lamb}.pt')
+        mse, corr = torch.load(f'../data/nem_ss/lamb/lamb_{lamb}.pt')
         m['mean'].append(torch.tensor(mse).mean())
         m['std'].append(torch.tensor(mse).var()**0.5)
         c['mean'].append(torch.tensor(corr).mean())
