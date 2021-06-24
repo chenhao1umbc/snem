@@ -332,7 +332,7 @@ if True:
         for i in range(I):
             x = torch.from_numpy(x_all[i]).permute(1,2,0)
             MSE, CORR = [], []
-            for ii in range(3):  # for diff initializations
+            for ii in range(20):  # for diff initializations
                 shat, Hhat, vhat, Rb = em_func(x, seed=ii, lamb=lamb, show_plot=False)
                 MSE.append(mse(vhat, v))
                 CORR.append(corr(vhat.real, v.real))
@@ -341,25 +341,26 @@ if True:
             print(f'finished {i} samples')
         torch.save((res_mse, res_corr), f'lamb_{lamb}.pt')
 
-    for lamb in [0, ]:
-        myfun(x_all[:2], v, lamb=lamb)
+    for lamb in [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000]:
+        myfun(x_all, v, lamb=lamb)
 
 # %% check the EM vs EM_l1 results
-    for lamb in [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9]:
-        mse, corr = torch.load(f'../data/nem_ss/lamb_{lamb}.pt')
+    all_lamb = [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000]
+    for lamb in all_lamb:
+        mse, corr = torch.load(f'lamb_{lamb}.pt')
         plt.figure()
         plt.subplot(2,1,1)
         plt.plot(range(1, 101), torch.tensor(mse).mean(dim=1))
-        plt.boxplot(mse, showfliers=False)        
+        plt.boxplot(mse, showfliers=True)        
         plt.legend(['Mean is blue'])
-        plt.ylim([340, 360])
+        # plt.ylim([340, 360])
         plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
         plt.xlabel('Sample index')
         plt.title(f'MSE result for lambda={lamb}')
 
         plt.subplot(2,1,2)
         plt.plot(range(1, 101), torch.tensor(corr).mean(dim=1))
-        plt.boxplot(corr, showfliers=False)        
+        plt.boxplot(corr, showfliers=True)        
         plt.legend(['Mean is blue'])
         plt.ylim([0.5, 0.8])
         plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
@@ -371,32 +372,32 @@ if True:
         plt.show()
 
     m, c = {'mean':[], 'std':[]}, {'mean':[], 'std':[]}
-    for lamb in [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9]:
-        mse, corr = torch.load(f'../data/nem_ss/lamb_{lamb}.pt')
+    for lamb in all_lamb:
+        mse, corr = torch.load(f'lamb_{lamb}.pt')
         m['mean'].append(torch.tensor(mse).mean())
         m['std'].append(torch.tensor(mse).var()**0.5)
         c['mean'].append(torch.tensor(corr).mean())
         c['std'].append(torch.tensor(corr).var()**0.5)
     plt.figure()
-    plt.plot(range(0,14),m['mean'], '-x')
-    plt.xticks(ticks=range(0,14), \
-        labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
+    plt.plot(range(len(all_lamb)),np.log(m['mean']), '-x')
+    plt.xticks(ticks=range(len(all_lamb)), \
+        labels=('0','1e-3','0.01','0.1','1','10','100','1e3'))
     plt.xlabel('Lambda')
     plt.title('Mean of MSE')
     plt.savefig('Mean of MSE.png')
 
     plt.figure()
-    plt.xticks(ticks=range(0,14), \
-    labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
+    plt.xticks(ticks=range(len(all_lamb)), \
+    labels=('0','1e-3','0.01','0.1','1','10','100','1e3'))
     plt.xlabel('Lambda')
-    plt.plot(m['std'], '-x')
+    plt.plot(np.log(m['std']), '-x')
     plt.title('STD of MSE')
     plt.savefig('STD of MSE.png')
 
     plt.figure()
-    plt.errorbar(range(0,14),m['mean'], m['std'], capsize=4)
-    plt.xticks(ticks=range(0,14), \
-        labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
+    plt.errorbar(range(len(all_lamb)),m['mean'], m['std'], capsize=4)
+    plt.xticks(ticks=range(len(all_lamb)), \
+        labels=('0','1e-3','0.01','0.1','1','10','100','1e3'))
     plt.xlabel('Lambda')
     plt.title('Mean of MSE with std')
     plt.savefig('Mean of MSE with std.png')
@@ -404,24 +405,24 @@ if True:
 
     plt.figure()
     plt.plot(c['mean'],'-x')
-    plt.xticks(ticks=range(0,14), \
-    labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
+    plt.xticks(ticks=range(len(all_lamb)), \
+    labels=('0','1e-3','0.01','0.1','1','10','100','1e3'))
     plt.xlabel('Lambda')
     plt.title('Mean of Corr.')
     plt.savefig('Mean of Corr.png')
 
     plt.figure()
     plt.plot(c['std'], '-x')
-    plt.xticks(ticks=range(0,14), \
-    labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
+    plt.xticks(ticks=range(len(all_lamb)), \
+    labels=('0','1e-3','0.01','0.1','1','10','100','1e3'))
     plt.xlabel('Lambda')
     plt.title('STD of Corr.')
     plt.savefig('STD of Corr.png')
 
     plt.figure()
-    plt.errorbar(range(0,14),c['mean'], c['std'], capsize=4)
-    plt.xticks(ticks=range(0,14), \
-        labels=('0','1e-3','0.01','0.1','1','10','100','1e3','1e4','1e5','1e6','1e7','1e8','1e9'))
+    plt.errorbar(range(len(all_lamb)),c['mean'], c['std'], capsize=4)
+    plt.xticks(ticks=range(len(all_lamb)), \
+        labels=('0','1e-3','0.01','0.1','1','10','100','1e3'))
     plt.xlabel('Lambda')
     plt.title('Mean of Corr with std')
     plt.savefig('Mean of Corr with std.png')
