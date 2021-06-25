@@ -351,7 +351,7 @@ if True:
         plt.figure()
         plt.subplot(2,1,1)
         plt.plot(range(1, 101), torch.tensor(mse).mean(dim=1))
-        plt.boxplot(mse, showfliers=False)        
+        plt.boxplot(mse, showfliers=True)        
         plt.legend(['Mean is blue'])
         # plt.ylim([340, 360])
         plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
@@ -395,7 +395,7 @@ if True:
     plt.savefig('STD of MSE.png')
 
     plt.figure()
-    plt.errorbar(range(len(all_lamb)),m['mean'], m['std'], capsize=4)
+    plt.errorbar(range(len(all_lamb)),np.log(m['mean']), abs(np.log(m['std'])), capsize=4)
     plt.xticks(ticks=range(len(all_lamb)), \
         labels=('0','1e-3','0.01','0.1','1','10','100','1e3'))
     plt.xlabel('Lambda')
