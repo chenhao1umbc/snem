@@ -18,7 +18,7 @@ opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
 opts['n_ch'] = 1  
 
 # x = torch.rand(I, N, F, M, dtype=torch.cdouble)
-data = sio.loadmat('../data/nem_ss/x3000M3_shift.mat')
+data = sio.loadmat('../data/nem_ss/x3000M3.mat')
 x = torch.tensor(data['x'], dtype=torch.cdouble).permute(0,2,3,1) # [sample, N, F, channel]
 gamma = torch.rand(I, J, 1, opts['d_gamma'], opts['d_gamma'])
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
@@ -91,7 +91,7 @@ for epoch in range(opts['n_epochs']):
             ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb)
             ll_traj.append(ll.item())
             if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
-            if ii > 10 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
+            if ii > 3 and abs((ll_traj[ii] - ll_traj[ii-1])/ll_traj[ii-1]) <1e-3:
                 print(f'EM early stop at iter {ii}, batch {i}, epoch {epoch}')
                 break
         

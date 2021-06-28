@@ -102,9 +102,7 @@ def threshold(x, floor=1e-20, ceiling=1e3):
 
 
 
-def em_func(x, J=3, Hscal=1, Rbscale=100, max_iter=201, lamb=0, seed=0, show_plot=False):
-    max_iter = max_iter
-
+def em_func(x, J=3, Hscale=1, Rbscale=100, max_iter=201, lamb=0, seed=0, show_plot=False):
     #  EM algorithm for one complex sample
     def calc_ll_cpx2(x, vhat, Rj, Rb):
         """ Rj shape of [J, M, M]
@@ -141,7 +139,7 @@ def em_func(x, J=3, Hscal=1, Rbscale=100, max_iter=201, lamb=0, seed=0, show_plo
     NF= N*F
     torch.torch.manual_seed(seed)
     vhat = torch.randn(N, F, J).abs().to(torch.cdouble)
-    Hhat = torch.randn(M, J, dtype=torch.cdouble)*Hscal
+    Hhat = torch.randn(M, J, dtype=torch.cdouble)*Hscale
     Rb = torch.eye(M).to(torch.cdouble)*Rbscale
     Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
     Rj = torch.zeros(J, M, M).to(torch.cdouble)
