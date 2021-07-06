@@ -65,7 +65,7 @@ def mydet(x):
     return res
 
 "reproduce the Matlab result"
-d = sio.loadmat('data/x1M3_cpx.mat')
+d = sio.loadmat('../data/nem_ss/x1M3_cpx.mat')
 x, c = torch.tensor(d['x'], dtype=torch.cdouble), \
     torch.tensor(d['c'], dtype=torch.cdouble)
 M, N, F, J = c.shape
@@ -74,7 +74,7 @@ x = x.permute(1,2,0)  # shape of [N, F, M]
 c = c.permute(1,2,3,0) # shape of [N, F, J, M]
 
 "loade data"
-d = sio.loadmat('data/v.mat')
+d = sio.loadmat('../data/nem_ss/v.mat')
 vj = torch.tensor(d['v'])
 pwr = torch.ones(1, 3)  # signal powers
 max_iter = 401
@@ -132,3 +132,5 @@ for j in range(J):
     plt.colorbar()
     plt.show()
 
+
+# %%

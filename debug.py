@@ -566,7 +566,7 @@ if True:
 
 # %% plot nem results
     for i in range(1,6):
-        mse, corr = torch.load(f'nem_v{i}.pt')
+        mse, corr = torch.load(f'../data/nem_ss/nem_res/nem_20iter_v{i}.pt')
         plt.figure()
         plt.subplot(2,1,1)
         plt.plot(range(1, 101), torch.tensor(mse[-100:]).mean(dim=1))
