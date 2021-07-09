@@ -220,7 +220,7 @@ for i, x in enumerate(xcv[:5]): # gamma [n_batch, 4, 4]
     plt.show()
 
 
-# %% reguler EM
+#%% reguler EM
 for i, x in enumerate(xcv[:5]):
     shat, Hhat, vhat, Rb = em_func(x)
     cj2 = Hhat.squeeze() * shat.squeeze().unsqueeze(-2) #[N,F,M,J]
@@ -231,4 +231,4 @@ for i, x in enumerate(xcv[:5]):
         plt.show()
 
 
-# %%
+#%%

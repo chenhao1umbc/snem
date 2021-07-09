@@ -256,7 +256,7 @@ if True:
             plt.savefig(f'log_c{j}.png')
             plt.show()
 
-# %% reguler EM test
+#%% reguler EM test
     for i, x in enumerate(xcv[:1]):
         shat, Hhat, vhat, Rb = em_func(x,Hscal=1, Rbscale=1e2)
         plt.figure()
@@ -292,7 +292,7 @@ if True:
             plt.savefig(f'log_c{j}.png')
             plt.show()
 
-# %% compare EM vs EM_l1
+#%% compare EM vs EM_l1
     import itertools
     d = sio.loadmat('../data/nem_ss/100_test_all.mat') 
     "x shape of [I,M,N,F], c [I,M,N,F,J], h [I,M,J]"
@@ -344,7 +344,7 @@ if True:
     for lamb in [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000]:
         myfun(x_all, v, lamb=lamb)
 
-# %% plot the EM vs EM_l1 results
+#%% plot the EM vs EM_l1 results
     all_lamb = [0, 0.001, 0.01, 0.1, 1, 10, 100, 1000]
     for lamb in all_lamb:
         mse, corr = torch.load(f'../data/nem_ss/lamb/lamb_{lamb}.pt')
@@ -427,7 +427,7 @@ if True:
     plt.title('Mean of Corr with std')
     plt.savefig('Mean of Corr with std.png')
 
-# %% test nem
+#%% test nem
     import itertools, time
     d = sio.loadmat('../data/nem_ss/100_test_all.mat') 
     "x shape of [I,M,N,F], c [I,M,N,F,J], h [I,M,J]"
@@ -564,7 +564,7 @@ if True:
             print(f'finished {i} samples')
         torch.save((res_mse, res_corr), f'nem_v{id}.pt')
 
-# %% plot nem results
+#%% plot nem results
     for i in range(1,6):
         mse, corr = torch.load(f'../data/nem_ss/nem_res/nem_20iter_v{i}.pt')
         plt.figure()
@@ -646,4 +646,4 @@ if True:
     # plt.title('Mean of Corr with std')
     # plt.savefig('Mean of Corr with std.png')
 
-# %%
+#%%
