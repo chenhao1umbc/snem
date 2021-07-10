@@ -7,13 +7,13 @@ torch.set_default_dtype(torch.double)
 
 #%% load data
 I = 3000 # how many samples
-M, N, F, J = 3, 50, 50, 3
+M, N, F, J = 3, 50, 50, 3  # Channels, time bins, Freq bins, Sources
 NF = N*F
 opts = {}
 opts['batch_size'] = 64
 opts['EM_iter'] = 150
-opts['n_epochs'] = 100
-opts['lr'] = 0.01
+opts['n_epochs'] = 151
+opts['lr'] = 0.005
 opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
 opts['n_ch'] = 1  
 
@@ -36,6 +36,10 @@ for j in range(J):
                     betas=(0.9, 0.999),
                     eps=1e-8,
                     weight_decay=0)
+"initial"
+vtr = torch.randn(I, N, F, J).abs().to(torch.cdouble)
+Htr = torch.randn(I, M, J).to(torch.cdouble)
+Rbtr = torch.ones(I, M).diag_embed().to(torch.cdouble)*100
 
 for epoch in range(opts['n_epochs']):    
     for j in range(J):
@@ -45,14 +49,13 @@ for epoch in range(opts['n_epochs']):
 
     for i, (x,) in enumerate(tr): # gamma [n_batch, 4, 4]
         #%% EM part
-        "initial"
+        vhat = vtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda()
+        Hhat = Htr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda()
+        Rb = Rbtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda()
         g = gtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda().requires_grad_()
-        optim_gamma = torch.optim.SGD([g], lr= 0.05) 
 
         x = x.cuda()
-        vhat = torch.randn(opts['batch_size'], N, F, J).abs().to(torch.cdouble).cuda()
-        Hhat = torch.randn(opts['batch_size'], M, J).to(torch.cdouble).cuda()
-        Rb = torch.ones(opts['batch_size'], M).diag_embed().cuda().to(torch.cdouble)*100
+        optim_gamma = torch.optim.SGD([g], lr= 0.05)
         Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((1,2))/NF
         Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
         Rx = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb # shape of [N,F,I,M,M]
@@ -94,7 +97,7 @@ for epoch in range(opts['n_epochs']):
             if ii > 3 and abs((ll_traj[ii] - ll_traj[ii-1])/ll_traj[ii-1]) <1e-3:
                 print(f'EM early stop at iter {ii}, batch {i}, epoch {epoch}')
                 break
-        
+        print('one batch is done')
         if i == 0 :
             plt.plot(ll_traj, '-x')
             plt.title(f'the log-likelihood of the first batch at epoch {epoch}')
@@ -113,8 +116,12 @@ for epoch in range(opts['n_epochs']):
             plt.title(f'3rd source of vj in first sample from the first batch at epoch {epoch}')
             plt.show()
         #%% update neural network
+        with torch.no_grad():
+            gtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = g.cpu()
+            vtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = vhat.cpu()
+            Htr[i*opts['batch_size']:(i+1)*opts['batch_size']] = Hhat.cpu()
+            Rbtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = Rb.cpu()
         g.requires_grad_(False)
-        gtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = g.cpu()
         out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
         for j in range(J):
             model[j].train()

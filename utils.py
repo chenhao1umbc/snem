@@ -42,7 +42,10 @@ def loss_func(vhat, Rsshatnf, lamb=0):
         det_Rs = det_Rs * vhat[..., j]
     p1 = det_Rs.log().sum() 
     p2 = Rsshatnf.diagonal(dim1=-1, dim2=-2)/vhat
-    loss = p1 + p2.sum() + lamb*vhat.abs().sum()
+    if lamb == 0:
+        loss = p1 + p2.sum() 
+    else:
+        loss = p1 + p2.sum() - lamb*vhat.abs().sum()
     return loss.sum()
 
 def log_likelihood(x, vhat, Hhat, Rb, lamb=0):
@@ -54,7 +57,10 @@ def log_likelihood(x, vhat, Hhat, Rb, lamb=0):
     Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
     Rxperm = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb 
     Rx = Rxperm.permute(2,0,1,3,4) # shape of [I, N, F, M, M]
-    l = lamb*vhat.abs().sum() -(np.pi*mydet(Rx)).log() - \
+    if lamb == 0:
+        l = -(np.pi*mydet(Rx)).log() - (x[...,None,:].conj()@Rx.inverse()@x[...,None]).squeeze() 
+    else:
+        l = lamb*vhat.abs().sum() -(np.pi*mydet(Rx)).log() - \
         (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze() 
     return l.sum().real, Rs, Rxperm
 
