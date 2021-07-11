@@ -31,7 +31,6 @@ if True:
     tr = Data.DataLoader(data, batch_size=opts['batch_size'], drop_last=True)
 
 #%% NEM train and debug
-    lamb = 0
     model, optimizer = {}, {}
     loss_iter, loss_tr = [], []
     for j in range(J):
@@ -41,6 +40,10 @@ if True:
                         betas=(0.9, 0.999),
                         eps=1e-8,
                         weight_decay=0)
+    "initial"
+    vtr = torch.randn(I, N, F, J).abs().to(torch.cdouble)
+    Htr = torch.randn(I, M, J).to(torch.cdouble)
+    Rbtr = torch.ones(I, M).diag_embed().to(torch.cdouble)*100
 
     for epoch in range(opts['n_epochs']):    
         for j in range(J):
@@ -50,17 +53,16 @@ if True:
 
         for i, (x,) in enumerate(tr): # gamma [n_batch, 4, 4]
             #%% EM part
-            "initial"
+            vhat = vtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda()
+            Hhat = Htr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda()
+            Rb = Rbtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda()
             g = gtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda().requires_grad_()
-            optim_gamma = torch.optim.SGD([g], lr= 0.01) 
 
             x = x.cuda()
-            vhat = torch.randn(opts['batch_size'], N, F, J).abs().to(torch.cdouble).cuda()
-            Hhat = torch.randn(opts['batch_size'], M, J).to(torch.cdouble).cuda()*100
-            Rb = torch.ones(opts['batch_size'], M).diag_embed().cuda().to(torch.cdouble)*100
+            optim_gamma = torch.optim.SGD([g], lr= 0.05)
             Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((1,2))/NF
             Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
-            Rx = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb # shape of [I, N, F, J, J]
+            Rx = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb # shape of [N,F,I,M,M]
             ll_traj = []
 
             for ii in range(opts['EM_iter']):
@@ -84,26 +86,19 @@ if True:
                 for j in range(J):
                     out[..., j] = model[j](g[:,j]).exp().squeeze()
                 vhat.real = threshold(out)
-                # print((out -vhat.real).norm().detach(), 'if changed')
                 loss = loss_func(vhat, Rsshatnf.cuda())
                 optim_gamma.zero_grad()   
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_([g], max_norm=10)
                 optim_gamma.step()
                 torch.cuda.empty_cache()
-                for j in range(J):
-                    out[..., j] = model[j](g[:,j].detach()).exp().squeeze()
-                # loss_after = loss_func(threshold(out.detach()), Rsshatnf.cuda())
-                # print(loss.detach().real - loss_after.real, ' loss diff')
-
+                
                 "compute log-likelyhood"
                 vhat = vhat.detach()
                 ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb)
                 ll_traj.append(ll.item())
                 if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
-                if ii > 3 and ll_traj[-1] < ll_traj[-2]  and  abs((ll_traj[-2] - ll_traj[-1])/ll_traj[-2])>0.1 :
-                    input('large descreasing happened')
-                if ii > 10 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
+                if ii > 3 and abs((ll_traj[ii] - ll_traj[ii-1])/ll_traj[ii-1]) <1e-3:
                     print(f'EM early stop at iter {ii}, batch {i}, epoch {epoch}')
                     break
             print('one batch is done')
@@ -114,19 +109,23 @@ if True:
 
                 plt.imshow(vhat[0,...,0].real.cpu())
                 plt.colorbar()
-                plt.title(f'1st channel of vj in first sample from the first batch at epoch {epoch}')
+                plt.title(f'1st source of vj in first sample from the first batch at epoch {epoch}')
                 plt.show()
                 plt.imshow(vhat[0,...,1].real.cpu())
                 plt.colorbar()
-                plt.title(f'2nd channel of vj in first sample from the first batch at epoch {epoch}')
+                plt.title(f'2nd source of vj in first sample from the first batch at epoch {epoch}')
                 plt.show()
                 plt.imshow(vhat[0,...,2].real.cpu())
                 plt.colorbar()
-                plt.title(f'3rd channel of vj in first sample from the first batch at epoch {epoch}')
+                plt.title(f'3rd source of vj in first sample from the first batch at epoch {epoch}')
                 plt.show()
             #%% update neural network
+            with torch.no_grad():
+                gtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = g.cpu()
+                vtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = vhat.cpu()
+                Htr[i*opts['batch_size']:(i+1)*opts['batch_size']] = Hhat.cpu()
+                Rbtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = Rb.cpu()
             g.requires_grad_(False)
-            gtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = g.cpu()
             out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
             for j in range(J):
                 model[j].train()
@@ -139,7 +138,7 @@ if True:
             loss = -ll
             loss.backward()
             for j in range(J):
-                torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=1)
+                torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=10)
                 optimizer[j].step()
                 torch.cuda.empty_cache()
             loss_iter.append(loss.detach().cpu().item())
