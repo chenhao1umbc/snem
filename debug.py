@@ -645,4 +645,64 @@ if True:
     # plt.title('Mean of Corr with std')
     # plt.savefig('Mean of Corr with std.png')
 
+#%% EM with fixed random initialization
+    import itertools
+    d = sio.loadmat('../data/nem_ss/100_test_all_M5.mat') 
+    "x shape of [I,M,N,F], c [I,M,N,F,J], h [I,M,J]"
+    x_all, c_all, h_all = d['x'], d['c_all'], d['h_all']
+    d = sio.loadmat('../data/nem_ss/v.mat')
+    v = torch.tensor(d['v'], dtype=torch.cdouble) # shape of [N,F,J]
+
+    def mse(vh, v):
+        J = v.shape[-1]
+        r = [] 
+        permutes = list(itertools.permutations(list(range(J))))
+        for jj in permutes:
+            temp = vh[...,jj[0]], vh[...,jj[1]], vh[...,jj[2]]
+            s = 0
+            for j in range(J):
+                s = s + (v[...,j] -temp[j]).norm()**2
+            r.append(s.item())
+        r = sorted(r)
+        return r[0]/J
+
+    def corr(vh, v):
+        J = v.shape[-1]
+        r = [] 
+        permutes = list(itertools.permutations(list(range(J))))
+        for jj in permutes:
+            temp = vh[...,jj[0]], vh[...,jj[1]], vh[...,jj[2]]
+            s = 0
+            for j in range(J):
+                s = s + stats.pearsonr(v[...,j].flatten(), temp[j].flatten())[0]
+            r.append(s)
+        r = sorted(r, reverse=True)
+        return r[0]/J
+
+    I = x_all.shape[0]
+    res_mse, res_corr = [], []
+    for i in range(I):
+        x = torch.from_numpy(x_all[i]).permute(1,2,0)
+        MSE, CORR = [], []
+        shat, Hhat, vhat, Rb = em_func(x, seed=0, show_plot=False)
+        MSE.append(mse(vhat, v))
+        CORR.append(corr(vhat.real, v.real))
+        res_mse.append(MSE)
+        res_corr.append(CORR)
+        print(f'finished {i} samples')
+
+#%% MUSIC algorithm for DOA
+    for i in range(20):
+        x = torch.from_numpy(x_all[i]).permute(1,2,0)
+        Rx = (x[..., None] @ x[:,:,None,:].conj()).sum([0,1])/2500
+        l, v = torch.linalg.eigh(Rx)
+        un = v[:,:2]
+        res = []
+        for i in torch.arange(0, np.pi, np.pi/100):
+            omeg = i
+            e = torch.tensor([1, np.exp(1*1j*omeg), np.exp(2*1j*omeg), np.exp(3*1j*omeg), np.exp(4*1j*omeg)])
+            P = 1/(e[None, :]@un@un.conj().t()@e[:,None])
+            res.append(abs(P))
+        plt.figure()
+        plt.plot(res)
 #%%
