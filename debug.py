@@ -685,6 +685,9 @@ if True:
         x = torch.from_numpy(x_all[i]).permute(1,2,0)
         MSE, CORR = [], []
         shat, Hhat, vhat, Rb = em_func(x, seed=0, show_plot=False)
+        plt.figure()
+        plt.imshow(vhat[...,0].real)
+        plt.show()
         MSE.append(mse(vhat, v))
         CORR.append(corr(vhat.real, v.real))
         res_mse.append(MSE)

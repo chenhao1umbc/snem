@@ -37,8 +37,8 @@ for j in range(J):
                     eps=1e-8,
                     weight_decay=0)
 "initial"
-vtr = torch.randn(I, N, F, J).abs().to(torch.cdouble)
-Htr = torch.randn(I, M, J).to(torch.cdouble)
+vtr = torch.randn(N, F, J).abs().to(torch.cdouble).repeat(I, 1, 1, 1)
+Htr = torch.randn(M, J).to(torch.cdouble).repeat(I, 1, 1)
 Rbtr = torch.ones(I, M).diag_embed().to(torch.cdouble)*100
 
 for epoch in range(opts['n_epochs']):    
