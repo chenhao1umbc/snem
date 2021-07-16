@@ -19,12 +19,13 @@ opts['batch_size'] = 64
 opts['EM_iter'] = 15
 opts['n_epochs'] = 100
 opts['lr'] = 0.001
-opts['d_gamma'] = 250 # gamma dimesion 16*16 to 200*200  
+opts['d_gamma'] = 250  
 
 # x = torch.rand(I, N, F, M, dtype=torch.cdouble)
 data = sio.loadmat('../data/nem_ss/x3000M3.mat')
 x = torch.tensor(data['x'], dtype=torch.cdouble).permute(0,2,3,1) # [sample, N, F, channel]
-gamma = torch.rand(I, J, opts['d_gamma'])
+# gamma = torch.rand(I, J, opts['d_gamma'])
+gamma = torch.rand(J, opts['d_gamma']).repeat(I,1,1)
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
 gtr, gcv, gte = gamma[:int(0.8*I)], gamma[int(0.8*I):int(0.9*I)], gamma[int(0.9*I):]
 data = Data.TensorDataset(xtr)
