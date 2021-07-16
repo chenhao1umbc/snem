@@ -16,41 +16,49 @@ M, N, F, J = 3, 50, 50, 3  # Channels, time bins, Freq bins, Sources
 NF = N*F
 opts = {}
 opts['batch_size'] = 64
-opts['EM_iter'] = 150
-opts['n_epochs'] = 151
-opts['lr'] = 0.005
-opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
-opts['n_ch'] = 1  
+opts['EM_iter'] = 15
+opts['n_epochs'] = 100
+opts['lr'] = 0.001
+opts['d_gamma'] = 250 # gamma dimesion 16*16 to 200*200  
 
 # x = torch.rand(I, N, F, M, dtype=torch.cdouble)
 data = sio.loadmat('../data/nem_ss/x3000M3.mat')
 x = torch.tensor(data['x'], dtype=torch.cdouble).permute(0,2,3,1) # [sample, N, F, channel]
-gamma = torch.rand(I, J, 1, opts['d_gamma'], opts['d_gamma'])
+gamma = torch.rand(I, J, opts['d_gamma'])
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
 gtr, gcv, gte = gamma[:int(0.8*I)], gamma[int(0.8*I):int(0.9*I)], gamma[int(0.9*I):]
 data = Data.TensorDataset(xtr)
 tr = Data.DataLoader(data, batch_size=opts['batch_size'], drop_last=True)
 
 #%% neural EM 
-model, optimizer = {}, {}
+class Fcn(nn.Module):
+    """Special version of Up class with only 1 input
+    """
+    def __init__(self, input, output):
+        super().__init__()
+        self.fc = nn.linear(input , output)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        x1 = self.fc(x)
+        x2 = self.conv(x1)
+        return x2
 loss_iter, loss_tr = [], []
-for j in range(J):
-    model[j] = UNetHalf(opts['n_ch'], 1).cuda()
-    optimizer[j] = optim.RAdam(model[j].parameters(),
-                    lr= opts['lr'],
-                    betas=(0.9, 0.999),
-                    eps=1e-8,
-                    weight_decay=0)
+model = Fcn(opts['d_gamma'], NF)
+optimizer = optim.RAdam(model.parameters(),
+                lr= opts['lr'],
+                betas=(0.9, 0.999),
+                eps=1e-8,
+                weight_decay=0)
 "initial"
 vtr = torch.randn(N, F, J).abs().to(torch.cdouble).repeat(I, 1, 1, 1)
 Htr = torch.randn(M, J).to(torch.cdouble).repeat(I, 1, 1)
 Rbtr = torch.ones(I, M).diag_embed().to(torch.cdouble)*100
 
 for epoch in range(opts['n_epochs']):    
-    for j in range(J):
-        for param in model[j].parameters():
-            param.requires_grad_(False)
-        model[j].eval()
+    for param in model.parameters():
+        param.requires_grad_(False)
+    model.eval()
 
     for i, (x,) in enumerate(tr): # gamma [n_batch, 4, 4]
         #%% EM part
@@ -83,10 +91,9 @@ for epoch in range(opts['n_epochs']):
 
             # vj = Rsshatnf.diagonal(dim1=-1, dim2=-2)
             # vj.imag = vj.imag - vj.imag
-            out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
-            for j in range(J):
-                out[..., j] = model[j](g[:,j]).exp().squeeze()
-            vhat.real = threshold(out)
+            out = torch.randn(opts['batch_size'], J, NF, device='cuda', dtype=torch.double)
+            out = model(g)
+            vhat.real = threshold(out.reshape(opts['batch_size'], J, N, F))
             loss = loss_func(vhat, Rsshatnf.cuda())
             optim_gamma.zero_grad()   
             loss.backward()
@@ -121,27 +128,26 @@ for epoch in range(opts['n_epochs']):
             plt.title(f'3rd source of vj in first sample from the first batch at epoch {epoch}')
             plt.show()
         #%% update neural network
-        with torch.no_grad():
+        with torch.no_grad(): # to give warm start
             gtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = g.cpu()
             vtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = vhat.cpu()
             Htr[i*opts['batch_size']:(i+1)*opts['batch_size']] = Hhat.cpu()
             Rbtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = Rb.cpu()
         g.requires_grad_(False)
         out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
-        for j in range(J):
-            model[j].train()
-            for param in model[j].parameters():
-                param.requires_grad_(True)
-            out[..., j] = model[j](g[:,j]).exp().squeeze()
-            optimizer[j].zero_grad() 
+
+        model.train()
+        for param in model.parameters():
+            param.requires_grad_(True)
+        out = model(g)
+        optimizer.zero_grad() 
         vhat.real = threshold(out)
         ll, *_ = log_likelihood(x, vhat, Hhat, Rb)
         loss = -ll
         loss.backward()
-        for j in range(J):
-            torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=10)
-            optimizer[j].step()
-            torch.cuda.empty_cache()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10)
+        optimizer.step()
+        torch.cuda.empty_cache()
         loss_iter.append(loss.detach().cpu().item())
 
     print(f'done with epoch{epoch}')
