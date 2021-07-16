@@ -35,16 +35,16 @@ tr = Data.DataLoader(data, batch_size=opts['batch_size'], drop_last=True)
 class Fcn(nn.Module):
     def __init__(self, input, output):
         super().__init__()
-        self.fc = nn.linear(input , output)
+        self.fc = nn.Linear(input , output)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         x1 = self.fc(x)
-        x2 = self.conv(x1)
+        x2 = self.sigmoid(x1)
         return x2
 
 loss_iter, loss_tr = [], []
-model = Fcn(opts['d_gamma'], NF)
+model = Fcn(opts['d_gamma'], NF).cuda()
 optimizer = torch.optim.Adam(model.parameters(), lr=opts['lr'])
 
 "initial"
@@ -88,7 +88,7 @@ for epoch in range(opts['n_epochs']):
             # update vj
             out = torch.randn(opts['batch_size'], J, NF, device='cuda', dtype=torch.double)
             out = model(g)
-            vhat.real = threshold(out.reshape(opts['batch_size'], J, N, F))
+            vhat.real = threshold(out.permute(0,2,1).reshape(opts['batch_size'],N,F,J))
             loss = loss_func(vhat, Rsshatnf.cuda())
             optim_gamma.zero_grad()   
             loss.backward()
@@ -136,7 +136,7 @@ for epoch in range(opts['n_epochs']):
             param.requires_grad_(True)
         out = model(g)
         optimizer.zero_grad() 
-        vhat.real = threshold(out)
+        vhat.real = threshold(out.permute(0,2,1).reshape(opts['batch_size'],N,F,J))
         ll, *_ = log_likelihood(x, vhat, Hhat, Rb)
         loss = -ll
         loss.backward()

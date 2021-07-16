@@ -164,14 +164,13 @@ def em_func(x, J=3, Hscale=1, Rbscale=100, max_iter=201, lamb=0, seed=0, show_pl
 
         "M-step"
         if lamb<0:
-            raise ValueError('lambda should be negative')
+            raise ValueError('lambda should be not negative')
         elif lamb >0:
             y = Rsshatnf.diagonal(dim1=-1, dim2=-2)
             vhat = -0.5/lamb + 0.5*(1+4*lamb*y)**0.5/lamb
         else:
             vhat = Rsshatnf.diagonal(dim1=-1, dim2=-2)
         vhat.imag = vhat.imag - vhat.imag
-        # print(vhat[:,:,0].flatten()[1424], vhat[:,:,0].real.argmax())
         Hhat = Rxshat @ Rsshat.inverse()
         Rb = Rxxhat - Hhat@Rxshat.t().conj() - \
             Rxshat@Hhat.t().conj() + Hhat@Rsshat@Hhat.t().conj()
