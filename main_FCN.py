@@ -24,8 +24,8 @@ opts['d_gamma'] = 250
 # x = torch.rand(I, N, F, M, dtype=torch.cdouble)
 data = sio.loadmat('../data/nem_ss/x3000M3.mat')
 x = torch.tensor(data['x'], dtype=torch.cdouble).permute(0,2,3,1) # [sample, N, F, channel]
-# gamma = torch.rand(I, J, opts['d_gamma'])
-gamma = torch.rand(J, opts['d_gamma']).repeat(I,1,1)
+gamma = torch.rand(I, J, opts['d_gamma'])
+# gamma = torch.rand(J, opts['d_gamma']).repeat(I,1,1)
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
 gtr, gcv, gte = gamma[:int(0.8*I)], gamma[int(0.8*I):int(0.9*I)], gamma[int(0.9*I):]
 data = Data.TensorDataset(xtr)
@@ -159,17 +159,14 @@ for epoch in range(opts['n_epochs']):
 #%% test part
 opts['EM_iter'] = 300
 models = torch.load('../data/nem_ss/models/model_200data_50epoch.pt')
-optimizer = {}
-for j in range(J):
-    models[j].eval()
-    for param in models[j].parameters():
-            param.requires_grad_(False)
+for param in models.parameters():
+    param.requires_grad_(False)
         
 for i, x in enumerate(xcv[:5]): # gamma [n_batch, 4, 4]
     #%% EM part
     "initial"
     g = gcv[i].cuda().requires_grad_()
-    optim_gamma = torch.optim.SGD([g], lr= 0.05) 
+    optim_gamma = torch.optim.SGD([g], lr= 0.01) 
 
     x = x.cuda()
     vhat = torch.randn(1, N, F, J).abs().to(torch.cdouble).cuda()
@@ -198,9 +195,8 @@ for i, x in enumerate(xcv[:5]): # gamma [n_batch, 4, 4]
         # vj = Rsshatnf.diagonal(dim1=-1, dim2=-2)
         # vj.imag = vj.imag - vj.imag
         out = torch.randn(vhat.shape, device='cuda', dtype=torch.double)
-        for j in range(J):
-            out[..., j] = models[j](g[None,j]).exp().squeeze()
-        vhat.real = threshold(out)
+        out = models(g)
+        vhat.real = threshold(out.permute(0,2,1).reshape(opts['batch_size'],N,F,J))
         loss = loss_func(vhat, Rsshatnf.cuda())
         optim_gamma.zero_grad()   
         loss.backward()
