@@ -33,8 +33,6 @@ tr = Data.DataLoader(data, batch_size=opts['batch_size'], drop_last=True)
 
 #%% neural EM 
 class Fcn(nn.Module):
-    """Special version of Up class with only 1 input
-    """
     def __init__(self, input, output):
         super().__init__()
         self.fc = nn.linear(input , output)
@@ -44,13 +42,11 @@ class Fcn(nn.Module):
         x1 = self.fc(x)
         x2 = self.conv(x1)
         return x2
+
 loss_iter, loss_tr = [], []
 model = Fcn(opts['d_gamma'], NF)
-optimizer = optim.RAdam(model.parameters(),
-                lr= opts['lr'],
-                betas=(0.9, 0.999),
-                eps=1e-8,
-                weight_decay=0)
+optimizer = torch.optim.Adam(model.parameters(), lr=opts['lr'])
+
 "initial"
 vtr = torch.randn(N, F, J).abs().to(torch.cdouble).repeat(I, 1, 1, 1)
 Htr = torch.randn(M, J).to(torch.cdouble).repeat(I, 1, 1)
@@ -69,7 +65,7 @@ for epoch in range(opts['n_epochs']):
         g = gtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda().requires_grad_()
 
         x = x.cuda()
-        optim_gamma = torch.optim.SGD([g], lr= 0.05)
+        optim_gamma = torch.optim.SGD([g], lr= 0.01)
         Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((1,2))/NF
         Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
         Rx = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb # shape of [N,F,I,M,M]
@@ -89,9 +85,7 @@ for epoch in range(opts['n_epochs']):
                 Rxshat@Hhat.transpose(-1,-2).conj() + Hhat@Rsshat@Hhat.transpose(-1,-2).conj()
             Rb = Rb.diagonal(dim1=-1, dim2=-2).diag_embed()
             Rb.imag = Rb.imag - Rb.imag
-
-            # vj = Rsshatnf.diagonal(dim1=-1, dim2=-2)
-            # vj.imag = vj.imag - vj.imag
+            # update vj
             out = torch.randn(opts['batch_size'], J, NF, device='cuda', dtype=torch.double)
             out = model(g)
             vhat.real = threshold(out.reshape(opts['batch_size'], J, N, F))
