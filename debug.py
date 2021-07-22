@@ -519,6 +519,9 @@ if True:
             ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb)
             ll_traj.append(ll.item())
             if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
+            if ii > 3 and abs((ll_traj[ii] - ll_traj[ii-1])/ll_traj[ii-1]) <1e-3:
+                # print(f'EM early stop at iter {ii}')
+                break
 
         if show_plot:
             plt.figure(100)
@@ -795,7 +798,7 @@ def nem_fcn(x, J=3, Hscale=1, Rbscale=100, max_iter=150, lamb=0, seed=0, model='
         ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb)
         ll_traj.append(ll.item())
         if ii > 3 and abs((ll_traj[ii] - ll_traj[ii-1])/ll_traj[ii-1]) <1e-3:
-            print(f'EM early stop at iter {ii}')
+            # print(f'EM early stop at iter {ii}')
             break
         if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
 
@@ -820,11 +823,12 @@ for id in range(1,6):
         x = torch.from_numpy(x_all[i]).permute(1,2,0)
         MSE, CORR = [], []
         for ii in range(20):  # for diff initializations
-            shat, Hhat, vhat, Rb = nem_fcn(x, seed=ii, model=location, show_plot=True)
+            shat, Hhat, vhat, Rb = nem_fcn(x, seed=ii, model=location, show_plot=False)
             MSE.append(mse(vhat, v))
             CORR.append(corr(vhat.real, v.real))
         res_mse.append(MSE)
         res_corr.append(CORR)
         print(f'finished {i} samples')
+    torch.save((res_mse, res_corr), f'nem_FCN_v{id}.pt')
 
 #%%
