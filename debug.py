@@ -796,6 +796,7 @@ def nem_fcn(x, J=3, Hscale=1, Rbscale=100, max_iter=150, lamb=0, seed=0, model='
         ll_traj.append(ll.item())
         if ii > 3 and abs((ll_traj[ii] - ll_traj[ii-1])/ll_traj[ii-1]) <1e-3:
             print(f'EM early stop at iter {ii}')
+            break
         if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
 
     if show_plot:
@@ -808,6 +809,7 @@ def nem_fcn(x, J=3, Hscale=1, Rbscale=100, max_iter=150, lamb=0, seed=0, model='
             plt.subplot(1,2,1)
             plt.imshow(vhat[...,j].cpu().squeeze().real)
             plt.colorbar()
+            plt.show()
     return shat.cpu(), Hhat.cpu(), vhat.cpu().squeeze(), Rb.cpu()
 
 I = x_all.shape[0]
