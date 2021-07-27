@@ -20,7 +20,7 @@ opts['n_ch'] = 1
 # x = torch.rand(I, N, F, M, dtype=torch.cdouble)
 data = sio.loadmat('../data/nem_ss/x3000M3.mat')
 x = torch.tensor(data['x'], dtype=torch.cdouble).permute(0,2,3,1) # [sample, N, F, channel]
-gamma = torch.rand(I, J, 1, opts['d_gamma'], opts['d_gamma'])
+gamma = torch.rand(J, 1, opts['d_gamma'], opts['d_gamma']).repeat(I,1,1,1,1)
 xtr, xcv, xte = x[:int(0.8*I)], x[int(0.8*I):int(0.9*I)], x[int(0.9*I):]
 gtr, gcv, gte = gamma[:int(0.8*I)], gamma[int(0.8*I):int(0.9*I)], gamma[int(0.9*I):]
 data = Data.TensorDataset(xtr)
@@ -80,7 +80,7 @@ for epoch in range(opts['n_epochs']):
             # vj.imag = vj.imag - vj.imag
             out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
             for j in range(J):
-                out[..., j] = model[j](g[:,j]).exp().squeeze()
+                out[..., j] = Func.sigmoid(model[j](g[:,j]).squeeze())
             vhat.real = threshold(out)
             loss = loss_func(vhat, Rsshatnf.cuda())
             optim_gamma.zero_grad()   
@@ -127,7 +127,7 @@ for epoch in range(opts['n_epochs']):
             model[j].train()
             for param in model[j].parameters():
                 param.requires_grad_(True)
-            out[..., j] = model[j](g[:,j]).exp().squeeze()
+            out[..., j] = Func.sigmoid(model[j](g[:,j]).squeeze())
             optimizer[j].zero_grad() 
         vhat.real = threshold(out)
         ll, *_ = log_likelihood(x, vhat, Hhat, Rb)
@@ -193,7 +193,7 @@ for i, x in enumerate(xcv[:5]): # gamma [n_batch, 4, 4]
         # vj.imag = vj.imag - vj.imag
         out = torch.randn(vhat.shape, device='cuda', dtype=torch.double)
         for j in range(J):
-            out[..., j] = models[j](g[None,j]).exp().squeeze()
+            out[..., j] = Func.sigmoid(model[j](g[:,j]).squeeze())
         vhat.real = threshold(out)
         loss = loss_func(vhat, Rsshatnf.cuda())
         optim_gamma.zero_grad()   
