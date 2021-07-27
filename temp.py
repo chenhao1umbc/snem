@@ -8,13 +8,14 @@ torch.set_default_dtype(torch.double)
 torch.manual_seed(1)
 
 rid = 1000 # running id
-I = 2 # how many samples
+fig_loc = '../data/nem_ss/figures/'
+I = 200 # how many samples
 M, N, F, J = 3, 50, 50, 3
 NF = N*F
 opts = {}
 opts['n_ch'] = 1  
 opts['batch_size'] = 64
-opts['EM_iter'] = 150
+opts['EM_iter'] = 3
 opts['lr'] = 0.001
 opts['n_epochs'] = 31
 opts['d_gamma'] = 4 # gamma dimesion 16*16 to 200*200
@@ -89,7 +90,7 @@ for epoch in range(opts['n_epochs']):
             loss = loss_func(vhat, Rsshatnf.cuda())
             optim_gamma.zero_grad()   
             loss.backward()
-            torch.nn.utils.clip_grad_norm_([g], max_norm=10)
+            torch.nn.utils.clip_grad_norm_([g], max_norm=1)
             optim_gamma.step()
             torch.cuda.empty_cache()
             
@@ -105,22 +106,22 @@ for epoch in range(opts['n_epochs']):
         if i == 0 :
             plt.plot(ll_traj, '-x')
             plt.title(f'the log-likelihood of the first batch at epoch {epoch}')
-            plt.savefig(f'./figures/id_{rid}_log-likelihood at epoch {epoch}')
+            plt.savefig(fig_loc + f'id{rid}_log-likelihood at epoch {epoch}')
 
             plt.imshow(vhat[0,...,0].real.cpu())
             plt.colorbar()
             plt.title(f'1st source of vj in first sample from the first batch at epoch {epoch}')
-            plt.savefig(f'../figures/id_{rid}_vj1 at epoch {epoch}')
+            plt.savefig(fig_loc + f'id{rid}_vj1 at epoch {epoch}')
 
             plt.imshow(vhat[0,...,1].real.cpu())
             plt.colorbar()
             plt.title(f'2nd source of vj in first sample from the first batch at epoch {epoch}')
-            plt.savefig(f'../figures/id_{rid}_vj2 at epoch {epoch}')
+            plt.savefig(fig_loc + f'id{rid}_vj2 at epoch {epoch}')
 
             plt.imshow(vhat[0,...,2].real.cpu())
             plt.colorbar()
             plt.title(f'3rd source of vj in first sample from the first batch at epoch {epoch}')
-            plt.savefig(f'./figures/id_{rid}_vj3 at epoch {epoch}')
+            plt.savefig(fig_loc + f'id{rid}_vj3 at epoch {epoch}')
 
         # #%% update neural network
         # with torch.no_grad():
@@ -141,7 +142,7 @@ for epoch in range(opts['n_epochs']):
         loss = -ll
         loss.backward()
         for j in range(J):
-            torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=10)
+            torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=1)
             optimizer[j].step()
             torch.cuda.empty_cache()
         loss_iter.append(loss.detach().cpu().item())
@@ -149,12 +150,12 @@ for epoch in range(opts['n_epochs']):
     print(f'done with epoch{epoch}')
     plt.plot(loss_iter, '-xr')
     plt.title(f'Loss fuction of all the iterations at epoch{epoch}')
-    plt.savefig(f'./figures/id_{rid}_Loss fuction of all at epoch{epoch}')
+    plt.savefig(fig_loc + f'id{rid}_Loss fuction of all at epoch{epoch}')
 
     loss_tr.append(loss.detach().cpu().item())
     plt.plot(loss_tr, '-or')
     plt.title(f'Loss fuction at epoch{epoch}')
-    plt.savefig(f'./figures/id_{rid}_Loss fuction at epoch{epoch}')
+    plt.savefig(fig_loc + f'id{rid}_Loss fuction at epoch{epoch}')
 
     torch.save(model, 'model_4to50_31epoch_1H_100Rb_cold_same_M3_shift_v1.pt')
 #%%
