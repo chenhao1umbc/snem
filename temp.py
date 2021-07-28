@@ -164,9 +164,9 @@ for epoch in range(opts['n_epochs']):
     plt.savefig(fig_loc + f'id{rid}_LossFun_epoch{epoch}')
 
     plt.close('all')  # to avoid warnings
-    torch.save(model, 'model_rid1000.pt')
+    torch.save(model, f'model_rid{rid}.pt')
 
-#%%
+#%% Share the Hhat
 
 #@title rid=9000
 from utils import *
@@ -333,5 +333,5 @@ for epoch in range(opts['n_epochs']):
     plt.savefig(fig_loc + f'id{rid}_LossFun_epoch{epoch}')
 
     plt.close('all')  # to avoid warnings
-    torch.save(model, 'model_rid9000.pt')
+    torch.save(model, f'model_rid{rid}.pt')
 #%%
