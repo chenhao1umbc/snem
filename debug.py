@@ -426,7 +426,7 @@ if True:
     plt.title('Mean of Corr with std')
     plt.savefig('Mean of Corr with std.png')
 
-#%% test nem
+#%% test CNN nem
     import itertools, time
     d = sio.loadmat('../data/nem_ss/100_test_all.mat') 
     "x shape of [I,M,N,F], c [I,M,N,F,J], h [I,M,J]"
@@ -633,7 +633,7 @@ if True:
     # plt.title('Mean of Corr with std')
     # plt.savefig('Mean of Corr with std.png')
 
-#%% EM with fixed random initialization
+#%% EM with fixed random initialization M=5
     import itertools
     d = sio.loadmat('../data/nem_ss/100_test_all_M5.mat') 
     "x shape of [I,M,N,F], c [I,M,N,F,J], h [I,M,J]"
@@ -832,50 +832,63 @@ if True:
         torch.save((res_mse, res_corr), f'nem_FCN_v{id}.pt')
 
 #%% Prepare real data
-"raw data processing"
-var_name = ['ble', 'bt', 'fhss1', 'fhss2', 'wifi1', 'wifi2']
-data = {}
-for i in range(6):
-    temp = sio.loadmat( '/home/chenhao1/Matlab/LMdata/compressed/'+var_name[i]+'_128_2k.mat')
-    # dd = (np.sum((abs(temp['x'])**2), 1)**0.5).reshape(2000, 1)
-    dd = np.abs(temp['x']).max(axis=1).reshape(2000, 1)
-    data[i] = temp['x'] / dd  # normalized very sample to 1
+    "raw data processing"
+    var_name = ['ble', 'bt', 'fhss1', 'fhss2', 'wifi1', 'wifi2']
+    data = {}
+    for i in range(6):
+        temp = sio.loadmat( '/home/chenhao1/Matlab/LMdata/compressed/'+var_name[i]+'_128_2k.mat')
+        # dd = (np.sum((abs(temp['x'])**2), 1)**0.5).reshape(2000, 1)
+        dd = np.abs(temp['x']).max(axis=1).reshape(2000, 1)
+        data[i] = temp['x'] / dd  # normalized very sample to 1
 
-np.set_printoptions(linewidth=150)
-"To generate 5000 mixture samples"
-theta = np.array([15, 60, -45])*np.pi/180  #len=M, signal AOAs  
-h = np.exp(-1j*np.pi*np.arange(0, 3)[:,None]@np.sin(theta)[None, :])  # shape of [M, J]
+    np.set_printoptions(linewidth=150)
+    "To generate 5000 mixture samples"
+    theta = np.array([15, 60, -45])*np.pi/180  #len=M, signal AOAs  
+    h = np.exp(-1j*np.pi*np.arange(0, 3)[:,None]@np.sin(theta)[None, :])  # shape of [M, J]
 
-np.random.seed(0)
-np.random.shuffle(data[0])
-np.random.shuffle(data[2])
-np.random.shuffle(data[5])
-d1 = h[:,0][:,None]@data[0][:,None,:] + h[:,1][:,None]@data[2][:,None,:] + h[:,2][:,None]@data[5][:,None,:]
+    np.random.seed(0)
+    np.random.shuffle(data[0])
+    np.random.shuffle(data[2])
+    np.random.shuffle(data[5])
+    d1 = h[:,0][:,None]@data[0][:,None,:] + h[:,1][:,None]@data[2][:,None,:] + h[:,2][:,None]@data[5][:,None,:]
 
-np.random.seed(1)
-np.random.shuffle(data[0])
-np.random.shuffle(data[2])
-np.random.shuffle(data[5])
-d2 = h[:,0][:,None]@data[0][:,None,:] + h[:,1][:,None]@data[2][:,None,:] + h[:,2][:,None]@data[5][:,None,:]
+    np.random.seed(1)
+    np.random.shuffle(data[0])
+    np.random.shuffle(data[2])
+    np.random.shuffle(data[5])
+    d2 = h[:,0][:,None]@data[0][:,None,:] + h[:,1][:,None]@data[2][:,None,:] + h[:,2][:,None]@data[5][:,None,:]
 
-np.random.seed(2)
-np.random.shuffle(data[0])
-np.random.shuffle(data[2])
-np.random.shuffle(data[5])
-d3 = h[:,0][:,None]@data[0][:,None,:] + h[:,1][:,None]@data[2][:,None,:] + h[:,2][:,None]@data[5][:,None,:]
+    np.random.seed(2)
+    np.random.shuffle(data[0])
+    np.random.shuffle(data[2])
+    np.random.shuffle(data[5])
+    d3 = h[:,0][:,None]@data[0][:,None,:] + h[:,1][:,None]@data[2][:,None,:] + h[:,2][:,None]@data[5][:,None,:]
 
-data_pool = np.concatenate((d1, d2, d3), axis=0)
-*_, Z = stft(data_pool, fs=4e7, nperseg=128, boundary=None)
-x = torch.tensor(np.roll(Z, 64, axis=2))  # roll nperseg//2
-plt.figure()
-plt.imshow(x[0,0].abs().log(), aspect='auto', interpolation='None')
-plt.title('One example of 3-component mixture')
-# torch.save(x[:5000], '5kM3FT200.pt')
+    data_pool = np.concatenate((d1, d2, d3), axis=0)
+    *_, Z = stft(data_pool, fs=4e7, nperseg=128, boundary=None)
+    x = torch.tensor(np.roll(Z, 64, axis=2))  # roll nperseg//2
+    plt.figure()
+    plt.imshow(x[0,0].abs().log(), aspect='auto', interpolation='None')
+    plt.title('One example of 3-component mixture')
+    # torch.save(x[:5000], '5kM3FT200.pt')
 
-#%%
-from utils import *
-from unet.unet_model import *
-model = UNetHalf8to128(1, 1)
-a = model(torch.rand(3,1,8,8))
-a.shape
+    "split train and test data"
+    from utils import *
+    torch.manual_seed(0)
+    ind = torch.randperm(5000)
+    d = torch.load('../data/nem_ss/5kM3FT128.pt')
+    x = d[ind]
+    torch.save(x[:4000], 'tr_val4kM3FT128.pt')
+    torch.save(x[4000:], 'test1kM3FT128.pt')
+
+    torch.manual_seed(0)
+    ind = torch.randperm(5000)
+    d = torch.load('../data/nem_ss/5kM3FT200.pt')
+    x = d[ind]
+    torch.save(x[:4000], 'tr_val4kM3FT200.pt')
+    torch.save(x[4000:], 'test1kM3FT200.pt')
+
+#%% Test EM on real data
+
+
 #%%
