@@ -836,7 +836,7 @@ if True:
 var_name = ['ble', 'bt', 'fhss1', 'fhss2', 'wifi1', 'wifi2']
 data = {}
 for i in range(6):
-    temp = sio.loadmat( '/home/chenhao1/Matlab/LMdata/compressed/'+var_name[i]+'_200_2k.mat')
+    temp = sio.loadmat( '/home/chenhao1/Matlab/LMdata/compressed/'+var_name[i]+'_128_2k.mat')
     # dd = (np.sum((abs(temp['x'])**2), 1)**0.5).reshape(2000, 1)
     dd = np.abs(temp['x']).max(axis=1).reshape(2000, 1)
     data[i] = temp['x'] / dd  # normalized very sample to 1
@@ -865,10 +865,10 @@ np.random.shuffle(data[5])
 d3 = h[:,0][:,None]@data[0][:,None,:] + h[:,1][:,None]@data[2][:,None,:] + h[:,2][:,None]@data[5][:,None,:]
 
 data_pool = np.concatenate((d1, d2, d3), axis=0)
-*_, Z = stft(data_pool, fs=4e7, nperseg=200, boundary=None)
-x = torch.tensor(np.roll(Z, 100, axis=2))
+*_, Z = stft(data_pool, fs=4e7, nperseg=128, boundary=None)
+x = torch.tensor(np.roll(Z, 64, axis=2))  # roll nperseg//2
 plt.figure()
 plt.imshow(x[0,0].abs().log(), aspect='auto', interpolation='None')
 plt.title('One example of 3-component mixture')
-
 # torch.save(x[:5000], '5kM3FT200.pt')
+#%%
