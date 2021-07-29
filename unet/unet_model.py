@@ -39,10 +39,6 @@ class UNet(nn.Module):
         return logits
 
 
-
-
-
-
 class Up_(nn.Module):
     """Upscaling then double conv"""
 
@@ -62,7 +58,6 @@ class Up_(nn.Module):
     def forward(self, x):
         x = self.up(x)
         return self.conv(x)
-
 
 
 class UNetHalf4to150(nn.Module):
@@ -188,5 +183,44 @@ class UNetHalf8to50(nn.Module):
         x = self.up2(x)
         x = self.up3(x)
         x = self.reshape(x) # input 256 output 150
+        out = self.outc(x)
+        return out
+
+
+class UNetHalf8to128(nn.Module):
+    def __init__(self, n_channels, n_classes, bilinear=False):
+        """Only the up part of the unet
+        Args:
+            n_channels ([type]): [how many input channels=n_sources]
+            n_classes ([type]): [how many output classes=n_sources]
+            bilinear (bool, optional): [use interpolation or deconv]. Defaults to False(use deconv).
+        """
+        super(UNetHalf8to128, self).__init__()
+        self.n_ch = n_channels
+        self.n_classes = n_classes
+        self.bilinear = bilinear
+        self.n_ch = 128
+
+        self.inc = DoubleConv(n_channels, self.n_ch)
+        self.up1 = Up_(self.n_ch, self.n_ch//2, bilinear=True)
+        self.up2 = Up_(self.n_ch//2, self.n_ch//4, bilinear)
+        self.up3 = Up_(self.n_ch//4, self.n_ch//8, bilinear)
+        self.up4 = Up_(self.n_ch//8, self.n_ch//16, bilinear)
+        self.reshape = nn.Sequential(
+            nn.Conv2d(self.n_ch//16, self.n_ch//8, kernel_size=3, padding=1),
+            nn.BatchNorm2d(self.n_ch//8),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(self.n_ch//8, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(inplace=True))
+        self.outc = OutConv(32, n_classes)
+
+    def forward(self, x):
+        x = self.inc(x)
+        x = self.up1(x)
+        x = self.up2(x)
+        x = self.up3(x)
+        x = self.up4(x)
+        x = self.reshape(x) 
         out = self.outc(x)
         return out

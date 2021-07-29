@@ -871,4 +871,11 @@ plt.figure()
 plt.imshow(x[0,0].abs().log(), aspect='auto', interpolation='None')
 plt.title('One example of 3-component mixture')
 # torch.save(x[:5000], '5kM3FT200.pt')
+
+#%%
+from utils import *
+from unet.unet_model import *
+model = UNetHalf8to128(1, 1)
+a = model(torch.rand(3,1,8,8))
+a.shape
 #%%
