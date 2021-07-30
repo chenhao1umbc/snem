@@ -837,9 +837,9 @@ if True:
     var_name = ['ble', 'bt', 'fhss1', 'fhss2', 'wifi1', 'wifi2']
     data = {}
     for i in range(6):
-        temp = sio.loadmat(f'/home/chenhao1/Matlab/LMdata/compressed/'+var_name[i]+'_{FT}_2k.mat')
-        # dd = (np.sum((abs(temp['x'])**2), 1)**0.5).reshape(2000, 1)
-        dd = np.abs(temp['x']).max(axis=1).reshape(2000, 1)
+        temp = sio.loadmat('/home/chenhao1/Matlab/LMdata/compressed/'+var_name[i]+f'_{FT}_2k.mat')
+        dd = (np.sum((abs(temp['x'])**2), 1)**0.5).reshape(2000, 1)
+        # dd = np.abs(temp['x']).max(axis=1).reshape(2000, 1)
         data[i] = temp['x'] / dd  # normalized very sample to 1
 
     np.set_printoptions(linewidth=150)
@@ -859,37 +859,39 @@ if True:
     np.random.shuffle(data[5])
     d2 = h[:,0][:,None]@data[0][:,None,:] + h[:,1][:,None]@data[2][:,None,:] + h[:,2][:,None]@data[5][:,None,:]
 
-    np.random.seed(2)
-    np.random.shuffle(data[0])
-    np.random.shuffle(data[2])
-    np.random.shuffle(data[5])
-    d3 = h[:,0][:,None]@data[0][:,None,:] + h[:,1][:,None]@data[2][:,None,:] + h[:,2][:,None]@data[5][:,None,:]
-
-    data_pool = np.concatenate((d1, d2, d3), axis=0)
+    data_pool = np.concatenate((d1, d2), axis=0)  #[I,M,time_len]
     *_, Z = stft(data_pool, fs=4e7, nperseg=FT, boundary=None)
     x = torch.tensor(np.roll(Z, FT//2, axis=2))  # roll nperseg//2
     plt.figure()
     plt.imshow(x[0,0].abs().log(), aspect='auto', interpolation='None')
     plt.title('One example of 3-component mixture')
-    torch.save(x[:5000], f'5kM3FT{FT}.pt')
+    torch.save(x[:3000], f'tr3kM3FT{FT}.pt')
 
-    "split train and test data"
-    from utils import *
-    torch.manual_seed(0)
-    ind = torch.randperm(5000)
-    d = torch.load('../data/nem_ss/5kM3FT128.pt')
-    x = d[ind]
-    torch.save(x[:4000], 'tr_val4kM3FT128.pt')
-    torch.save(x[4000:], 'test1kM3FT128.pt')
+    "get s and h for the val and test data"
+    *_, Z = stft(data[0][1000:1500], fs=4e7, nperseg=FT, boundary=None)
+    s1 = np.roll(Z, FT//2, axis=1)  # roll nperseg//2
+    *_, Z = stft(data[2][1000:1500], fs=4e7, nperseg=FT, boundary=None)
+    s2 = np.roll(Z, FT//2, axis=1)  # roll nperseg//2
+    *_, Z = stft(data[5][1000:1500], fs=4e7, nperseg=FT, boundary=None)
+    s3 = np.roll(Z, FT//2, axis=1)  # roll nperseg//2
+    s = torch.tensor(np.stack((s1, s2, s3), axis=1))  #[I, J, F, T]
+    torch.save((x[3000:3500], s, h), f'val500M3FT{FT}_xsh.pt')
 
-    torch.manual_seed(0)
-    ind = torch.randperm(5000)
-    d = torch.load('../data/nem_ss/5kM3FT200.pt')
-    x = d[ind]
-    torch.save(x[:4000], 'tr_val4kM3FT200.pt')
-    torch.save(x[4000:], 'test1kM3FT200.pt')
+    *_, Z = stft(data[0][1500:], fs=4e7, nperseg=FT, boundary=None)
+    s1 = np.roll(Z, FT//2, axis=1)  # roll nperseg//2
+    *_, Z = stft(data[2][1500:], fs=4e7, nperseg=FT, boundary=None)
+    s2 = np.roll(Z, FT//2, axis=1)  # roll nperseg//2
+    *_, Z = stft(data[5][1500:], fs=4e7, nperseg=FT, boundary=None)
+    s3 = np.roll(Z, FT//2, axis=1)  # roll nperseg//2
+    s = torch.tensor(np.stack((s1, s2, s3), axis=1))  #[I, J, F, T]
+    torch.save((x[3500:], s, h), f'test500M3FT{FT}_xsh.pt')
+
 
 #%% Test EM on real data
+    d, s, h = torch.load('../data/nem_ss/test500M3FT128_xsh.pt')
+    x = (d/d.abs().amax(dim=(1,2,3))[:,None,None,None]*3).permute(0,2,3,1)
+    shat, Hhat, vhat, Rb = em_func(x[0], show_plot=True)
+
 
 
 #%%
