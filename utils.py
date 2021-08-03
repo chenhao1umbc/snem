@@ -188,8 +188,7 @@ def em_func(x, J=3, Hscale=1, Rbscale=100, max_iter=201, lamb=0, seed=0, show_pl
         plt.show()
         "display results"
         for j in range(J):
-            plt.figure(j)
-            plt.subplot(1,2,1)
+            plt.figure()
             plt.imshow(vhat[:,:,j].real)
             plt.colorbar()
 

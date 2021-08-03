@@ -886,12 +886,13 @@ if True:
     s = torch.tensor(np.stack((s1, s2, s3), axis=1))  #[I, J, F, T]
     torch.save((x[3500:], s, h), f'test500M3FT{FT}_xsh.pt')
 
-
 #%% Test EM on real data
     d, s, h = torch.load('../data/nem_ss/test500M3FT128_xsh.pt')
     x = (d/d.abs().amax(dim=(1,2,3))[:,None,None,None]*3).permute(0,2,3,1)
-    shat, Hhat, vhat, Rb = em_func(x[0], show_plot=True)
-
-
+    shat, Hhat, vhat, Rb = em_func(x[1], show_plot=True)
+    for i in [0,1,2]:
+        plt.figure()
+        plt.imshow(s[1,i].abs())
+        plt.colorbar()
 
 #%%
