@@ -887,7 +887,7 @@ if True:
     torch.save((x[3500:], s, h), f'test500M3FT{FT}_xsh.pt')
 
 #%% Test EM on real data
-    d, s, h = torch.load('../data/nem_ss/test500M3FT128_xsh.pt')
+    d, s, h = torch.load('../data/nem_ss/test500M3FT100_xsh.pt')
     x = (d/d.abs().amax(dim=(1,2,3))[:,None,None,None]*3).permute(0,2,3,1)
     shat, Hhat, vhat, Rb = em_func(x[1], show_plot=True)
     for i in [0,1,2]:
