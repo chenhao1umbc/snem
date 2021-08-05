@@ -961,19 +961,21 @@ if True:
             r.append(s)
         r = sorted(r, reverse=True)
         return r[0]/J
-
-    I = 10# x_all.shape[0]
+    import time
+    t = time.time()
+    I = 2# x_all.shape[0]
     res_corr = []
     for i in range(I):
         CORR = []
         for ii in range(5):
             shat, Hhat, vhat, Rb = em_func(x_all[i], seed=ii, show_plot=False)
-            plt.figure()
-            plt.imshow(vhat[...,0].real)
-            plt.show()
             CORR.append(corr(vhat.real, vj_all[i].real))
+            # plt.figure()
+            # plt.imshow(vhat[...,0].real)
+            # plt.show()
         res_corr.append(CORR)
         print(f'finished {i} samples')
+    print('Time used is ', time.time()-t)
 
 #%% Prepare real data
     "raw data processing"
