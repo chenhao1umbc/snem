@@ -832,6 +832,7 @@ if True:
         torch.save((res_mse, res_corr), f'nem_FCN_v{id}.pt')
 
 #%% Test NEM on dynamic toy
+    import itertools
     d = sio.loadmat('../data/nem_ss/test100M3_shift.mat')
     vj = torch.tensor(d['vj']).to(torch.cdouble)  # shape of [I, N, F, J]
     x = torch.tensor(d['x'])  # shape of [I, M, N, F]
@@ -942,17 +943,31 @@ if True:
         torch.save((res_mse, res_corr), f'nem_CNN_v{id}.pt')
 
 #%% Test EM on dynamic toy
+    import itertools
     d = sio.loadmat('../data/nem_ss/test100M3_shift.mat')
     vj_all = torch.tensor(d['vj']).to(torch.cdouble)  # shape of [I, N, F, J]
-    x_all = torch.tensor(d['x']).permute(1,2,0)  # shape of [I, M, N, F]
+    x_all = torch.tensor(d['x']).permute(0,2,3,1)  # shape of [I, M, N, F]
     cj = torch.tensor(d['cj'])  # shape of [I, M, N, F, J]
 
-    I = x_all.shape[0]
-    res_mse, res_corr = [], []
+    def corr(vh, v):
+        J = v.shape[-1]
+        r = [] 
+        permutes = list(itertools.permutations(list(range(J))))
+        for jj in permutes:
+            temp = vh[...,jj[0]], vh[...,jj[1]], vh[...,jj[2]]
+            s = 0
+            for j in range(J):
+                s = s + stats.pearsonr(v[...,j].flatten(), temp[j].flatten())[0]
+            r.append(s)
+        r = sorted(r, reverse=True)
+        return r[0]/J
+
+    I = 10# x_all.shape[0]
+    res_corr = []
     for i in range(I):
         CORR = []
-        for ii in range(20):
-            shat, Hhat, vhat, Rb = em_func(x_all[i], seed=0, show_plot=False)
+        for ii in range(5):
+            shat, Hhat, vhat, Rb = em_func(x_all[i], seed=ii, show_plot=False)
             plt.figure()
             plt.imshow(vhat[...,0].real)
             plt.show()
