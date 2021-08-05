@@ -961,13 +961,14 @@ if True:
             r.append(s)
         r = sorted(r, reverse=True)
         return r[0]/J
+
     import time
     t = time.time()
-    I = 2# x_all.shape[0]
+    I = x_all.shape[0]
     res_corr = []
     for i in range(I):
         CORR = []
-        for ii in range(5):
+        for ii in range(20):
             shat, Hhat, vhat, Rb = em_func(x_all[i], seed=ii, show_plot=False)
             CORR.append(corr(vhat.real, vj_all[i].real))
             # plt.figure()
@@ -976,6 +977,7 @@ if True:
         res_corr.append(CORR)
         print(f'finished {i} samples')
     print('Time used is ', time.time()-t)
+    # torch.save(res_corr, 'res_toy100shift.pt')
 
 #%% Prepare real data
     "raw data processing"
