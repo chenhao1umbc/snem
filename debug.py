@@ -697,7 +697,7 @@ if True:
         plt.figure()
         plt.plot(res)
 
-#%% Test FCN nem
+#%% Test FCN nem on static toy
     import itertools
     class Fcn(nn.Module):
         def __init__(self, input, output):
@@ -830,6 +830,25 @@ if True:
             res_corr.append(CORR)
             print(f'finished {i} samples')
         torch.save((res_mse, res_corr), f'nem_FCN_v{id}.pt')
+
+#%% Test NEM on dynamic toy
+    d = sio.loadmat('../data/nem_ss/test100M3_shift.mat')
+    vj = torch.tensor(d['vj']).to(torch.cdouble)  # shape of [I, N, F, J]
+    x = torch.tensor(d['x'])  # shape of [I, M, N, F]
+    cj = torch.tensor(d['cj'])  # shape of [I, M, N, F, J]
+    
+    def corr(vh, v):
+        J = v.shape[-1]
+        r = [] 
+        permutes = list(itertools.permutations(list(range(J))))
+        for jj in permutes:
+            temp = vh[...,jj[0]], vh[...,jj[1]], vh[...,jj[2]]
+            s = 0
+            for j in range(J):
+                s = s + stats.pearsonr(v[...,j].flatten(), temp[j].flatten())[0]
+            r.append(s)
+        r = sorted(r, reverse=True)
+        return r[0]/J
 
 #%% Prepare real data
     "raw data processing"
