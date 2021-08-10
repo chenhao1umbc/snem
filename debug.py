@@ -4,7 +4,7 @@ if True gives each cell an indent, so that each cell could be folded in vs code
 #%% load dependency 
 if True:
     from utils import *
-    os.environ["CUDA_VISIBLE_DEVICES"]="0"
+    os.environ["CUDA_VISIBLE_DEVICES"]="1"
     plt.rcParams['figure.dpi'] = 150
     torch.set_printoptions(linewidth=160)
     torch.set_default_dtype(torch.double)
@@ -1082,7 +1082,8 @@ if True:
             print('A model is needed')
         models = {}  # the following 3 lines are matching training initials
         for j in range(J): #---- see above ---
-            models[j] = UNetHalf(1, 1).cuda() #---- see above ---
+            models[j] = UNetHalf(1, 1) #---- see above ---
+        del models #---- see above ---
 
         models = torch.load(model)
         for j in range(J):
@@ -1159,8 +1160,8 @@ if True:
                 plt.colorbar()
         return shat.cpu(), Hhat.cpu(), vhat.cpu().squeeze(), Rb.cpu()
     
-        I = x_all.shape[0]
-    
+        
+    I = x_all.shape[0]
     res_corr = []
     location = f'../data/nem_ss/models/model_rid5000.pt'
     for i in range(5):
