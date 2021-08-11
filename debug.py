@@ -870,6 +870,7 @@ if True:
 
 #%% Test NEM on dynamic toy
     import itertools
+    from skimage.transform import resize
     d = sio.loadmat('../data/nem_ss/test100M3_shift.mat')
     vj_all = torch.tensor(d['vj']).to(torch.cdouble)  # shape of [I, N, F, J]
     x_all = torch.tensor(d['x']).permute(0,2,3,1)  # shape of [I, M, N, F]
@@ -900,9 +901,7 @@ if True:
         #%% EM part
         "initial"        
         N, F, M = x.shape
-        NF= N*F
-        # g = torch.rand(1, J, 1, 4, 4).cuda().requires_grad_()
-        from skimage.transform import resize
+        NF= N*F      
         gtr = torch.tensor(resize(x[...,0].abs(), [1,8,8], order=1, preserve_range=True))
         gtr = gtr/gtr.amax(dim=[1,2])[...,None,None]  #standardization shape of [1, 8, 8]
         g = torch.stack([gtr[:,None] for j in range(J)], dim=1).cuda().requires_grad_()
@@ -1058,10 +1057,11 @@ if True:
 
 #%% Test NEM on real data
     from unet.unet_model import UNetHalf8to100 as UNetHalf
+    from skimage.transform import resize
     import itertools
     d, s, h = torch.load('../data/nem_ss/test500M3FT100_xsh.pt')
     x_all = (d/d.abs().amax(dim=(1,2,3))[:,None,None,None]*3).permute(0,2,3,1)
-    vj_all = s.abs()
+    vj_all = s.abs().permute(0,2,3,1)
 
     def corr(vh, v):
         J = v.shape[-1]
@@ -1075,7 +1075,7 @@ if True:
             r.append(s)
         r = sorted(r, reverse=True)
         return r[0]/J
-    
+
     def nem_func(x, J=3, Hscale=1, Rbscale=100, max_iter=151, lamb=0, seed=1, model='', show_plot=False):
         torch.torch.manual_seed(seed) 
         if model == '':
@@ -1095,8 +1095,6 @@ if True:
         "initial"        
         N, F, M = x.shape
         NF= N*F
-        # g = torch.rand(1, J, 1, 4, 4).cuda().requires_grad_()
-        from skimage.transform import resize
         gtr = torch.tensor(resize(x[...,0].abs(), [1,8,8], order=1, preserve_range=True))
         gtr = gtr/gtr.amax(dim=[1,2])[...,None,None]  #standardization shape of [1, 8, 8]
         g = torch.stack([gtr[:,None] for j in range(J)], dim=1).cuda().requires_grad_()
@@ -1108,7 +1106,7 @@ if True:
         Rxxhat = (x[...,None] @ x[..., None, :].conj()).sum((0,1))/NF
         Rs = vhat.diag_embed() # shape of [I, N, F, J, J]
         Rx = Hhat @ Rs.permute(1,2,0,3,4) @ Hhat.transpose(-1,-2).conj() + Rb # shape of [N,F,I,M,M]
-        optim_gamma = torch.optim.SGD([g], lr= 0.05)
+        optim_gamma = torch.optim.SGD([g], lr= 0.001)
         ll_traj = []
 
         for ii in range(max_iter): # EM iterations
@@ -1144,9 +1142,11 @@ if True:
             ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb)
             ll_traj.append(ll.item())
             if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
-            if ii > 5 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
-                # print(f'EM early stop at iter {ii}')
-                break
+            # if ii > 5 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
+            #     print(f'EM early stop at iter {ii}')
+            #     break
+            if ii == 40:
+                pass
 
         if show_plot:
             plt.figure(100)
@@ -1159,7 +1159,7 @@ if True:
                 plt.imshow(vhat[...,j].cpu().squeeze().real)
                 plt.colorbar()
         return shat.cpu(), Hhat.cpu(), vhat.cpu().squeeze(), Rb.cpu()
-    
+
         
     I = x_all.shape[0]
     res_corr = []
