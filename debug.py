@@ -4,7 +4,7 @@ if True gives each cell an indent, so that each cell could be folded in vs code
 #%% load dependency 
 if True:
     from utils import *
-    os.environ["CUDA_VISIBLE_DEVICES"]="1"
+    os.environ["CUDA_VISIBLE_DEVICES"]="0"
     plt.rcParams['figure.dpi'] = 150
     torch.set_printoptions(linewidth=160)
     torch.set_default_dtype(torch.double)
@@ -902,12 +902,12 @@ if True:
         "initial"        
         N, F, M = x.shape
         NF= N*F      
-        gtr = torch.tensor(resize(x[...,0].abs(), [1,8,8], order=1, preserve_range=True))
-        gtr = gtr/gtr.amax(dim=[1,2])[...,None,None]  #standardization shape of [1, 8, 8]
+        gtr = torch.tensor(resize(x[...,0].abs(), [8,8], order=1, preserve_range=True))
+        gtr = (gtr/gtr.max())[None,...]  #standardization shape of [1, 8, 8]
         g = torch.stack([gtr[:,None] for j in range(J)], dim=1).cuda().requires_grad_()
         x = x.cuda()
 
-        torch.torch.manual_seed(seed)        
+        torch.manual_seed(seed)        
         vhat = torch.randn(1, N, F, J).abs().to(torch.cdouble).cuda()
         Hhat = torch.randn(1, M, J).to(torch.cdouble).cuda()*Hscale
         Rb = torch.ones(1, M).diag_embed().cuda().to(torch.cdouble)*Rbscale
@@ -969,9 +969,9 @@ if True:
     I = x_all.shape[0]
     res_corr = []
     location = f'../data/nem_ss/models/model_rid8100.pt'
-    for i in range(5):
+    for i in range(3):
         c = []
-        for ii in range(10):
+        for ii in range(3):
             shat, Hhat, vhat, Rb = nem_func(x_all[i], seed=ii,model=location)
             c.append(corr(vhat.real, vj_all[i].real))
         res_corr.append(c)
@@ -1049,10 +1049,10 @@ if True:
 #%% Test EM on real data
     d, s, h = torch.load('../data/nem_ss/test500M3FT100_xsh.pt')
     x = (d/d.abs().amax(dim=(1,2,3))[:,None,None,None]*3).permute(0,2,3,1)
-    shat, Hhat, vhat, Rb = em_func(x[1], show_plot=True)
+    shat, Hhat, vhat, Rb = em_func(x[0], show_plot=True)
     for i in [0,1,2]:
         plt.figure()
-        plt.imshow(s[1,i].abs())
+        plt.imshow(s[0,i].abs())
         plt.colorbar()
 
 #%% Test NEM on real data
@@ -1077,7 +1077,7 @@ if True:
         return r[0]/J
 
     def nem_func(x, J=3, Hscale=1, Rbscale=100, max_iter=151, lamb=0, seed=1, model='', show_plot=False):
-        torch.torch.manual_seed(seed) 
+        torch.manual_seed(seed) 
         if model == '':
             print('A model is needed')
         models = {}  # the following 3 lines are matching training initials
@@ -1095,8 +1095,8 @@ if True:
         "initial"        
         N, F, M = x.shape
         NF= N*F
-        gtr = torch.tensor(resize(x[...,0].abs(), [1,8,8], order=1, preserve_range=True))
-        gtr = gtr/gtr.amax(dim=[1,2])[...,None,None]  #standardization shape of [1, 8, 8]
+        gtr = torch.tensor(resize(x[...,0].abs(), [8,8], order=1, preserve_range=True))
+        gtr = (gtr/gtr.max())[None,...]  #standardization shape of [1, 8, 8]
         g = torch.stack([gtr[:,None] for j in range(J)], dim=1).cuda().requires_grad_()
         x = x.cuda()
 
@@ -1142,11 +1142,9 @@ if True:
             ll, Rs, Rx = log_likelihood(x, vhat, Hhat, Rb)
             ll_traj.append(ll.item())
             if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
-            # if ii > 5 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
-            #     print(f'EM early stop at iter {ii}')
-            #     break
-            if ii == 40:
-                pass
+            if ii > 5 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
+                print(f'EM early stop at iter {ii}')
+                break
 
         if show_plot:
             plt.figure(100)
@@ -1159,19 +1157,17 @@ if True:
                 plt.imshow(vhat[...,j].cpu().squeeze().real)
                 plt.colorbar()
         return shat.cpu(), Hhat.cpu(), vhat.cpu().squeeze(), Rb.cpu()
-
-        
+    
+    location = f'../data/nem_ss/models/model_rid5200.pt'
     I = x_all.shape[0]
     res_corr = []
-    location = f'../data/nem_ss/models/model_rid5000.pt'
-    for i in range(5):
+    for i in range(1):
         c = []
         for ii in range(3):
             shat, Hhat, vhat, Rb = nem_func(x_all[i],seed=ii,model=location)
-            c.append(corr(vhat.real, vj_all[i]))
+            c.append(corr(s.squeeze().abs(), vj_all[i]))
         res_corr.append(c)
         print(f'finished {i} samples')
-    # torch.save(res_corr, f'nem_toy_shift.pt')
 
 
 
