@@ -4,7 +4,7 @@ if True gives each cell an indent, so that each cell could be folded in vs code
 #%% load dependency 
 if True:
     from utils import *
-    os.environ["CUDA_VISIBLE_DEVICES"]="0"
+    os.environ["CUDA_VISIBLE_DEVICES"]="1"
     plt.rcParams['figure.dpi'] = 150
     torch.set_printoptions(linewidth=160)
     torch.set_default_dtype(torch.double)
@@ -1048,20 +1048,25 @@ if True:
 
 #%% Test EM on real data
     d, s, h = torch.load('../data/nem_ss/test500M3FT100_xsh.pt')
-    x = (d/d.abs().amax(dim=(1,2,3))[:,None,None,None]*3).permute(0,2,3,1)
-    shat, Hhat, vhat, Rb = em_func(x[0], show_plot=True)
-    for i in [0,1,2]:
+    ratio = d.abs().amax(dim=(1,2,3))/3
+    x = (d/ratio[:,None,None,None]).permute(0,2,3,1)
+    ind = 0
+    shat, Hhat, vhat, Rb = em_func(x[ind])
+    for i in range(3):
         plt.figure()
-        plt.imshow(s[0,i].abs())
+        plt.imshow(shat.squeeze().abs()[...,i]*ratio[ind])
         plt.colorbar()
+        plt.show()
+    # sio.savemat('x0s_em.mat', {'x':x[ind].numpy(),'s_em':(shat.squeeze().abs()*ratio[ind]).numpy()})
 
 #%% Test NEM on real data
     from unet.unet_model import UNetHalf8to100 as UNetHalf
     from skimage.transform import resize
     import itertools
     d, s, h = torch.load('../data/nem_ss/test500M3FT100_xsh.pt')
-    x_all = (d/d.abs().amax(dim=(1,2,3))[:,None,None,None]*3).permute(0,2,3,1)
-    vj_all = s.abs().permute(0,2,3,1)
+    ratio = d.abs().amax(dim=(1,2,3))/3
+    x_all = (d/ratio[:,None,None,None]).permute(0,2,3,1)
+    s_all = s.abs().permute(0,2,3,1)
 
     def corr(vh, v):
         J = v.shape[-1]
@@ -1159,15 +1164,33 @@ if True:
         return shat.cpu(), Hhat.cpu(), vhat.cpu().squeeze(), Rb.cpu()
     
     location = f'../data/nem_ss/models/model_rid5200.pt'
-    I = x_all.shape[0]
-    res_corr = []
-    for i in range(1):
-        c = []
-        for ii in range(3):
-            shat, Hhat, vhat, Rb = nem_func(x_all[i],seed=ii,model=location)
-            c.append(corr(s.squeeze().abs(), vj_all[i]))
-        res_corr.append(c)
-        print(f'finished {i} samples')
+    ind = 0
+    shat, Hhat, vhat, Rb = nem_func(x_all[ind],seed=1,model=location)
+    for i in range(3):
+        plt.figure()
+        plt.imshow(shat.squeeze().abs()[...,i]*ratio[ind])
+        plt.colorbar()
+        plt.title(f'Estimated sources {i+1}')
+        plt.show()
+    
+    for i in range(3):
+        plt.figure()
+        plt.imshow(s_all[ind].squeeze().abs()[...,i])
+        plt.colorbar()
+        plt.title(f'Estimated sources {i+1}')
+        plt.show()
+
+    # sio.savemat('sshat_nem.mat', {'s':s_all[ind].squeeze().abs().numpy(),'s_nem':(shat.squeeze().abs()*ratio[ind]).numpy()})
+
+    # I = x_all.shape[0]
+    # res_corr = []
+    # for i in range(1):
+    #     c = []
+    #     for ii in range(3):
+    #         shat, Hhat, vhat, Rb = nem_func(x_all[i],seed=ii,model=location)
+    #         c.append(corr(shat.squeeze().abs(), vj_all[i]))
+    #     res_corr.append(c)
+    #     print(f'finished {i} samples')
 
 
 
