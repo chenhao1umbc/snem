@@ -1,7 +1,5 @@
-#%% 
-
+#%%
 #@title rid=? the same initialization, warm start,warm shared Hhat, lr_gamma=0.01, 4000tr samples, trim=1
-
 from utils import *
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 plt.rcParams['figure.dpi'] = 100
