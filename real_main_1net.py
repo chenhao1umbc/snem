@@ -8,7 +8,7 @@ torch.set_default_dtype(torch.double)
 from unet.unet_model import UNetHalf8to100 as UNetHalf
 torch.manual_seed(1)
 
-rid = 5200 # running id
+rid = 115200 # running id
 fig_loc = '../data/nem_ss/figures/'
 if not(os.path.isdir(fig_loc + f'/rid{rid}/')): 
     print('made a new folder')
@@ -19,7 +19,7 @@ I = 3000 # how many samples
 M, N, F, J = 3, 100, 100, 3
 NF = N*F
 opts = {}
-opts['n_ch'] = 1  
+opts['n_ch'] = 3  
 opts['batch_size'] = 64
 opts['EM_iter'] = 150
 opts['lr'] = 0.001
@@ -34,27 +34,25 @@ from skimage.transform import resize
 gtr = torch.tensor(resize(xtr[...,0].abs(), [I,opts['d_gamma'],opts['d_gamma']],\
     order=1, preserve_range=True ))
 gtr = gtr/gtr.amax(dim=[1,2])[...,None,None]  #standardization 
-gtr = torch.stack([gtr[:,None] for j in range(J)], dim=1)
+gtr = torch.cat([gtr[:,None] for j in range(J)], dim=1) # shape of 
 
-model, optimizer = {}, {}
 loss_iter, loss_tr = [], []
-for j in range(J):
-    model[j] = UNetHalf(opts['n_ch'], 1).cuda()
-    optimizer[j] = optim.RAdam(model[j].parameters(),
-                    lr= opts['lr'],
-                    betas=(0.9, 0.999),
-                    eps=1e-8,
-                    weight_decay=0)
+model = UNetHalf(opts['n_ch'], opts['n_ch']).cuda()
+optimizer = optim.RAdam(model.parameters(),
+                lr= opts['lr'],
+                betas=(0.9, 0.999), 
+                eps=1e-8,
+                weight_decay=0)
 "initial"
 vtr = torch.randn(N, F, J).abs().to(torch.cdouble).repeat(I, 1, 1, 1)
 Htr = torch.randn(M, J).to(torch.cdouble).repeat(I, 1, 1)
 Rbtr = torch.ones(I, M).diag_embed().to(torch.cdouble)*100
 
 for epoch in range(opts['n_epochs']):    
-    for j in range(J):
-        for param in model[j].parameters():
-            param.requires_grad_(False)
-        model[j].eval()
+
+    for param in model.parameters():
+        param.requires_grad_(False)
+    model.eval()
 
     for i, (x,) in enumerate(tr): # gamma [n_batch, 4, 4]
         #%% EM part
@@ -62,14 +60,6 @@ for epoch in range(opts['n_epochs']):
         vhat = vtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda()        
         Rb = Rbtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda()
         g = gtr[i*opts['batch_size']:(i+1)*opts['batch_size']].cuda().requires_grad_()
-        print('Hhat', Hhat[0])
-        print('vhat', vhat[0,0,:10,:10])
-        print('Rb', Rb[0])
-        print('g.shape', g.shape)
-        plt.figure()
-        plt.imshow(g.detach().squeeze()[0,0].abs().cpu())
-        plt.show()
-        input('yes')
 
         x = x.cuda()
         optim_gamma = torch.optim.SGD([g], lr=0.001)
@@ -96,9 +86,7 @@ for epoch in range(opts['n_epochs']):
 
             # vj = Rsshatnf.diagonal(dim1=-1, dim2=-2)
             # vj.imag = vj.imag - vj.imag
-            out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
-            for j in range(J):
-                out[..., j] = torch.sigmoid(model[j](g[:,j]).squeeze())
+            out = torch.sigmoid(model(g)).permute(0,2,3,1)
             vhat.real = threshold(out)
             loss = loss_func(vhat, Rsshatnf.cuda())
             optim_gamma.zero_grad()   
@@ -115,32 +103,32 @@ for epoch in range(opts['n_epochs']):
             if ii > 5 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
                 print(f'EM early stop at iter {ii}, batch {i}, epoch {epoch}')
                 break
+    
         print(f'batch {i} is done')
         if i == 0 :
             plt.figure()
             plt.plot(ll_traj, '-x')
             plt.title(f'the log-likelihood of the first batch at epoch {epoch}')
-            # plt.savefig(fig_loc + f'id{rid}_log-likelihood_epoch{epoch}')
+            plt.savefig(fig_loc + f'id{rid}_log-likelihood_epoch{epoch}')
 
             plt.figure()
             plt.imshow(vhat[0,...,0].real.cpu())
             plt.colorbar()
             plt.title(f'1st source of vj in first sample from the first batch at epoch {epoch}')
-            # plt.savefig(fig_loc + f'id{rid}_vj1_epoch{epoch}')
+            plt.savefig(fig_loc + f'id{rid}_vj1_epoch{epoch}')
 
             plt.figure()
             plt.imshow(vhat[0,...,1].real.cpu())
             plt.colorbar()
             plt.title(f'2nd source of vj in first sample from the first batch at epoch {epoch}')
-            # plt.savefig(fig_loc + f'id{rid}_vj2_epoch{epoch}')
+            plt.savefig(fig_loc + f'id{rid}_vj2_epoch{epoch}')
 
             plt.figure()
             plt.imshow(vhat[0,...,2].real.cpu())
             plt.colorbar()
             plt.title(f'3rd source of vj in first sample from the first batch at epoch {epoch}')
-            # plt.savefig(fig_loc + f'id{rid}_vj3_epoch{epoch}')
+            plt.savefig(fig_loc + f'id{rid}_vj3_epoch{epoch}')
             plt.show()
-            break
 
         # #%% update neural network
         # with torch.no_grad():
@@ -149,34 +137,32 @@ for epoch in range(opts['n_epochs']):
         #     Htr[i*opts['batch_size']:(i+1)*opts['batch_size']] = Hhat.cpu()
         #     Rbtr[i*opts['batch_size']:(i+1)*opts['batch_size']] = Rb.cpu()
         g.requires_grad_(False)
-        out = torch.randn(opts['batch_size'], N, F, J, device='cuda', dtype=torch.double)
-        for j in range(J):
-            model[j].train()
-            for param in model[j].parameters():
-                param.requires_grad_(True)
-            out[..., j] = torch.sigmoid(model[j](g[:,j]).squeeze())
-            optimizer[j].zero_grad() 
+        model.train()
+        for param in model.parameters():
+            param.requires_grad_(True)
+        out = torch.sigmoid(model(g)).permute(0,2,3,1)
+        optimizer.zero_grad() 
         vhat.real = threshold(out)
         ll, *_ = log_likelihood(x, vhat, Hhat, Rb)
         loss = -ll
         loss.backward()
-        for j in range(J):
-            torch.nn.utils.clip_grad_norm_(model[j].parameters(), max_norm=1)
-            optimizer[j].step()
-            torch.cuda.empty_cache()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
+        optimizer.step()
+        torch.cuda.empty_cache()
         loss_iter.append(loss.detach().cpu().item())
 
     print(f'done with epoch{epoch}')
     plt.figure()
     plt.plot(loss_iter, '-xr')
     plt.title(f'Loss fuction of all the iterations at epoch{epoch}')
-    # plt.savefig(fig_loc + f'id{rid}_LossFunAll_epoch{epoch}')
+    plt.savefig(fig_loc + f'id{rid}_LossFunAll_epoch{epoch}')
 
     loss_tr.append(loss.detach().cpu().item())
     plt.figure()
     plt.plot(loss_tr, '-or')
     plt.title(f'Loss fuction at epoch{epoch}')
-    # plt.savefig(fig_loc + f'id{rid}_LossFun_epoch{epoch}')
+    plt.savefig(fig_loc + f'id{rid}_LossFun_epoch{epoch}')
 
     plt.close('all')  # to avoid warnings
     # torch.save(model, f'model_rid{rid}.pt')
+    # torch.save(Hhat, f'Hhat_rid{rid}.pt')
