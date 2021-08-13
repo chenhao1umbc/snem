@@ -4,7 +4,7 @@ if True gives each cell an indent, so that each cell could be folded in vs code
 #%% load dependency 
 if True:
     from utils import *
-    os.environ["CUDA_VISIBLE_DEVICES"]="1"
+    os.environ["CUDA_VISIBLE_DEVICES"]="0"
     plt.rcParams['figure.dpi'] = 150
     torch.set_printoptions(linewidth=160)
     torch.set_default_dtype(torch.double)
@@ -889,7 +889,7 @@ if True:
         r = sorted(r, reverse=True)
         return r[0]/J
 
-    def nem_func(x, J=3, Hscale=1, Rbscale=100, max_iter=201, lamb=0, seed=0, model='', show_plot=False):
+    def nem_func(x, J=3, Hscale=1, Rbscale=100, max_iter=151, lamb=0, seed=0, model='', show_plot=False):
         if model == '':
             print('A model is needed')
         models = torch.load(model)
@@ -951,7 +951,7 @@ if True:
             ll_traj.append(ll.item())
             if torch.isnan(torch.tensor(ll_traj[-1])) : input('nan happened')
             if ii > 5 and abs((ll_traj[ii] - ll_traj[ii-3])/ll_traj[ii-3]) <1e-3:
-                # print(f'EM early stop at iter {ii}')
+                print(f'EM early stop at iter {ii}')
                 break
 
         if show_plot:
@@ -968,7 +968,7 @@ if True:
 
     I = x_all.shape[0]
     res_corr = []
-    location = f'../data/nem_ss/models/model_rid8100.pt'
+    location = f'../data/nem_ss/models/model_rid8300.pt'
     for i in range(3):
         c = []
         for ii in range(3):
