@@ -1164,20 +1164,20 @@ if True:
         return shat.cpu(), Hhat.cpu(), vhat.cpu().squeeze(), Rb.cpu()
     
     location = f'../data/nem_ss/models/model_rid5200.pt'
-    ind = 0
+    ind = 3
     shat, Hhat, vhat, Rb = nem_func(x_all[ind],seed=1,model=location)
     for i in range(3):
         plt.figure()
         plt.imshow(shat.squeeze().abs()[...,i]*ratio[ind])
         plt.colorbar()
-        plt.title(f'Estimated sources {i+1}')
+        # plt.title(f'Estimated sources {i+1}')
         plt.show()
     
     for i in range(3):
         plt.figure()
         plt.imshow(s_all[ind].squeeze().abs()[...,i])
         plt.colorbar()
-        plt.title(f'Estimated sources {i+1}')
+        plt.title(f'GT sources {i+1}')
         plt.show()
 
     # sio.savemat('sshat_nem.mat', {'s':s_all[ind].squeeze().abs().numpy(),'s_nem':(shat.squeeze().abs()*ratio[ind]).numpy()})
