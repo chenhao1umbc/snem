@@ -1093,7 +1093,7 @@ if True:
     d, s, h = torch.load('../data/nem_ss/test500M3FT100_xsh.pt')
     ratio = d.abs().amax(dim=(1,2,3))/3
     x_all = (d/ratio[:,None,None,None]).permute(0,2,3,1)
-    s_all = s.abs().permute(0,2,3,1)
+    s_all = s.abs().permute(0,2,3,1) 
 
     def corr(vh, v):
         J = v.shape[-1]
