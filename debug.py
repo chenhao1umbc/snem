@@ -1050,14 +1050,41 @@ if True:
     d, s, h = torch.load('../data/nem_ss/test500M3FT100_xsh.pt')
     ratio = d.abs().amax(dim=(1,2,3))/3
     x = (d/ratio[:,None,None,None]).permute(0,2,3,1)
-    ind = 0
-    shat, Hhat, vhat, Rb = em_func(x[ind])
-    for i in range(3):
-        plt.figure()
-        plt.imshow(shat.squeeze().abs()[...,i]*ratio[ind])
-        plt.colorbar()
-        plt.show()
-    # sio.savemat('x0s_em.mat', {'x':x[ind].numpy(),'s_em':(shat.squeeze().abs()*ratio[ind]).numpy()})
+    s_all = s.abs().permute(0,2,3,1)
+
+    def corr(vh, v):
+        J = v.shape[-1]
+        r = [] 
+        permutes = list(itertools.permutations(list(range(J))))
+        for jj in permutes:
+            temp = vh[...,jj[0]], vh[...,jj[1]], vh[...,jj[2]]
+            s = 0
+            for j in range(J):
+                s = s + abs(stats.pearsonr(v[...,j].flatten(), temp[j].flatten())[0])
+            r.append(s)
+        r = sorted(r, reverse=True)
+        return r[0]/J
+
+    single_data = True
+    if single_data:
+        ind = 0
+        shat, Hhat, vhat, Rb = em_func(x[ind])
+        for i in range(3):
+            plt.figure()
+            plt.imshow(shat.squeeze().abs()[...,i]*ratio[ind])
+            plt.colorbar()
+            plt.show()
+        # sio.savemat('x0s_em.mat', {'x':x[ind].numpy(),'s_em':(shat.squeeze().abs()*ratio[ind]).numpy()})
+    
+    else: # run a lot of samples
+        res = []
+        for i in range(100):
+            c = []
+            for ii in range(20):
+                shat, Hhat, vhat, Rb = em_func(x[i], seed=ii)
+                c.append(corr(shat.squeeze().abs(), s_all[i]))
+            res.append(c)
+            print(f'finished {i} samples')
 
 #%% Test NEM on real data
     from unet.unet_model import UNetHalf8to100 as UNetHalf
@@ -1164,33 +1191,34 @@ if True:
         return shat.cpu(), Hhat.cpu(), vhat.cpu().squeeze(), Rb.cpu()
     
     location = f'../data/nem_ss/models/model_rid5200.pt'
-    ind = 3
-    shat, Hhat, vhat, Rb = nem_func(x_all[ind],seed=1,model=location)
-    for i in range(3):
-        plt.figure()
-        plt.imshow(shat.squeeze().abs()[...,i]*ratio[ind])
-        plt.colorbar()
-        # plt.title(f'Estimated sources {i+1}')
-        plt.show()
+    single_data = False
+    if single_data:
+        ind = 0
+        shat, Hhat, vhat, Rb = nem_func(x_all[ind],seed=1,model=location)
+        for i in range(3):
+            plt.figure()
+            plt.imshow(shat.squeeze().abs()[...,i]*ratio[ind])
+            plt.colorbar()
+            # plt.title(f'Estimated sources {i+1}')
+            plt.show()
+        
+        for i in range(3):
+            plt.figure()
+            plt.imshow(s_all[ind].squeeze().abs()[...,i])
+            plt.colorbar()
+            plt.title(f'GT sources {i+1}')
+            plt.show()
+        # sio.savemat('sshat_nem.mat', {'s':s_all[ind].squeeze().abs().numpy(),'s_nem':(shat.squeeze().abs()*ratio[ind]).numpy()})
     
-    for i in range(3):
-        plt.figure()
-        plt.imshow(s_all[ind].squeeze().abs()[...,i])
-        plt.colorbar()
-        plt.title(f'GT sources {i+1}')
-        plt.show()
-
-    # sio.savemat('sshat_nem.mat', {'s':s_all[ind].squeeze().abs().numpy(),'s_nem':(shat.squeeze().abs()*ratio[ind]).numpy()})
-
-    # I = x_all.shape[0]
-    # res_corr = []
-    # for i in range(1):
-    #     c = []
-    #     for ii in range(3):
-    #         shat, Hhat, vhat, Rb = nem_func(x_all[i],seed=ii,model=location)
-    #         c.append(corr(shat.squeeze().abs(), vj_all[i]))
-    #     res_corr.append(c)
-    #     print(f'finished {i} samples')
+    else: # run a lot of samples
+        res = []
+        for i in range(100):
+            c = []
+            for ii in range(20):
+                shat, Hhat, vhat, Rb = nem_func(x_all[i],seed=ii,model=location)
+                c.append(corr(shat.squeeze().abs(), s_all[i]))
+            res.append(c)
+            print(f'finished {i} samples')
 
 
 
