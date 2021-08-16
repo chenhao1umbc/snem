@@ -1065,6 +1065,27 @@ if True:
         r = sorted(r, reverse=True)
         return r[0]/J
 
+    def comp_pearson(x, y):
+        """complex version of pearson correlation coefficients
+        """
+        numer = (x - x.mean()).conj() @ (y - y.mean()).abs()/x.shape[0]
+        dinom = (x - x.mean()).mean().conj()*(x - x.mean()).mean()**0.5 *\
+             (y - y.mean()).mean().conj()*(y - y.mean()).mean()**0.5
+        return numer/dinom
+        
+    def h_corr(h, hh):
+        J = h.shape[-1]
+        r = [] 
+        permutes = list(itertools.permutations(list(range(J))))
+        for jj in permutes:
+            temp = hh[...,jj[0]], hh[...,jj[1]], hh[...,jj[2]]
+            s = 0
+            for j in range(J):
+                s = s + abs(comp_pearson(h[...,j].flatten(), hh[...,j].flatten())[0])
+            r.append(s)
+        r = sorted(r, reverse=True)
+        return r[0]/J
+
     single_data = True
     if single_data:
         ind = 0
@@ -1219,7 +1240,5 @@ if True:
                 c.append(corr(shat.squeeze().abs(), s_all[i]))
             res.append(c)
             print(f'finished {i} samples')
-
-
 
 #%%
