@@ -1248,7 +1248,7 @@ if True:
         # torch.save([res, res2], 'res_nem_real.pt')
 
 #%% plot real data results
-    res_s, res_h = torch.load('res_em_real.pt')
+    res_s, res_h = torch.load('../data/nem_ss/nem_res/res_em_real.pt')
     plt.figure()
     plt.plot(range(1, 101), torch.tensor(res_s).mean(dim=1))
     plt.boxplot(res_s, showfliers=True)        
@@ -1256,7 +1256,7 @@ if True:
     plt.ylim([0.4, 1.01])
     plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
     plt.xlabel('Sample index')
-    plt.title('EM correlation result the magnitude of s')
+    plt.title('EM correlation result for the magnitude of s')
     plt.show()
 
     plt.figure()
@@ -1269,7 +1269,7 @@ if True:
     plt.title('EM correlation result for the angles of h')
     plt.show()
 
-    res_s, res_h = torch.load('res_nem_real.pt')
+    res_s, res_h = torch.load('../data/nem_ss/nem_res/res_nem_real_5401.pt')
     plt.figure()
     plt.plot(range(1, 101), torch.tensor(res_s).mean(dim=1))
     plt.boxplot(res_s, showfliers=True)        
@@ -1277,7 +1277,7 @@ if True:
     # plt.ylim([0.99, 1.01])
     plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
     plt.xlabel('Sample index')
-    plt.title('NEM correlation result the magnitude of s')
+    plt.title('NEM correlation result for the magnitude of s')
     plt.show()
 
     plt.figure()
