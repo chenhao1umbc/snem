@@ -1093,7 +1093,7 @@ if True:
             for ii in range(20):
                 shat, Hhat, vhat, Rb = em_func(x[i], seed=ii)
                 c.append(corr(shat.squeeze().abs(), s_all[i]))
-                cc.append(h_corr(h.abs(), Hhat.abs()))
+                cc.append(h_corr(abs(h), Hhat.abs()))
             res.append(c)
             res2.append(cc)
             print(f'finished {i} samples')
@@ -1119,6 +1119,16 @@ if True:
             r.append(s)
         r = sorted(r, reverse=True)
         return r[0]/J
+
+    def h_corr(h, hh):
+        J = h.shape[-1]
+        r = [] 
+        permutes = list(itertools.permutations(list(range(J))))
+        for p in permutes:
+            temp = hh[:,torch.tensor(p)]
+            r.append(abs(stats.pearsonr(h.flatten(), temp.flatten())[0]))
+        r = sorted(r, reverse=True)
+        return r[0]
 
     def nem_func(x, J=3, Hscale=1, Rbscale=100, max_iter=151, lamb=0, seed=1, model='', show_plot=False):
         torch.manual_seed(seed) 
@@ -1221,15 +1231,17 @@ if True:
             plt.title(f'GT sources {i+1}')
             plt.show()
         # sio.savemat('sshat_nem.mat', {'s':s_all[ind].squeeze().abs().numpy(),'s_nem':(shat.squeeze().abs()*ratio[ind]).numpy()})
-    
     else: # run a lot of samples
-        res = []
+        res, res2 = [], []
         for i in range(100):
-            c = []
+            c, cc = [], []
             for ii in range(20):
                 shat, Hhat, vhat, Rb = nem_func(x_all[i],seed=ii,model=location)
                 c.append(corr(shat.squeeze().abs(), s_all[i]))
+                cc.append(h_corr(np.angle(h), Hhat.angle()))
             res.append(c)
+            res2.append(cc)
             print(f'finished {i} samples')
+    torch.save([res, res2], 'res_nem_real.pt')
 
 #%%
