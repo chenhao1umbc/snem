@@ -1102,6 +1102,8 @@ if True:
     from unet.unet_model import UNetHalf8to100 as UNetHalf
     from skimage.transform import resize
     import itertools
+    import time
+    t = time.time()
     d, s, h = torch.load('../data/nem_ss/test500M3FT100_xsh.pt')
     ratio = d.abs().amax(dim=(1,2,3))/3
     x_all = (d/ratio[:,None,None,None]).permute(0,2,3,1)
@@ -1242,6 +1244,51 @@ if True:
             res.append(c)
             res2.append(cc)
             print(f'finished {i} samples')
-    torch.save([res, res2], 'res_nem_real.pt')
+        print('Time used is ', time.time()-t)
+        # torch.save([res, res2], 'res_nem_real.pt')
+
+#%% plot real data results
+    res_s, res_h = torch.load('res_em_real.pt')
+    plt.figure()
+    plt.plot(range(1, 101), torch.tensor(res_s).mean(dim=1))
+    plt.boxplot(res_s, showfliers=True)        
+    plt.legend(['Mean is blue'])
+    plt.ylim([0.4, 1.01])
+    plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
+    plt.xlabel('Sample index')
+    plt.title('EM correlation result the magnitude of s')
+    plt.show()
+
+    plt.figure()
+    plt.plot(range(1, 101), torch.tensor(res_h).mean(dim=1))
+    plt.boxplot(res_h, showfliers=True)        
+    plt.legend(['Mean is blue'])
+    # plt.ylim([0.5, 0.8])
+    plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
+    plt.xlabel('Sample index')
+    plt.title('EM correlation result for the angles of h')
+    plt.show()
+
+    res_s, res_h = torch.load('res_nem_real.pt')
+    plt.figure()
+    plt.plot(range(1, 101), torch.tensor(res_s).mean(dim=1))
+    plt.boxplot(res_s, showfliers=True)        
+    plt.legend(['Mean is blue'])
+    # plt.ylim([0.99, 1.01])
+    plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
+    plt.xlabel('Sample index')
+    plt.title('NEM correlation result the magnitude of s')
+    plt.show()
+
+    plt.figure()
+    plt.plot(range(1, 101), torch.tensor(res_h).mean(dim=1))
+    plt.boxplot(res_h, showfliers=True)        
+    plt.legend(['Mean is blue'])
+    # plt.ylim([0.5, 0.8])
+    plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
+    plt.xlabel('Sample index')
+    plt.title('NEM correlation result for the angles of h')
+    plt.show()
+
 
 #%%
