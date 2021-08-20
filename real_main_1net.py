@@ -1,5 +1,5 @@
 #%%
-#@title rid=115300 cold start, cold shared Hhat
+#@title rid=125300 cold start, cold shared Hhat
 from utils import *
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 plt.rcParams['figure.dpi'] = 100
@@ -8,7 +8,7 @@ torch.set_default_dtype(torch.double)
 from unet.unet_model import UNetHalf8to100 as UNetHalf
 torch.manual_seed(1)
 
-rid = 115300 # running id
+rid = 125300 # running id
 fig_loc = '../data/nem_ss/figures/'
 if not(os.path.isdir(fig_loc + f'/rid{rid}/')): 
     print('made a new folder')
