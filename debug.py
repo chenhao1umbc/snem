@@ -1049,6 +1049,7 @@ if True:
 #%% Test EM on real data
     import itertools
     d, s, h = torch.load('../data/nem_ss/test500M3FT100_xsh.pt')
+    h = torch.tensor(h)
     ratio = d.abs().amax(dim=(1,2,3))/3
     x = (d/ratio[:,None,None,None]).permute(0,2,3,1)
     s_all = s.abs().permute(0,2,3,1)
@@ -1070,13 +1071,15 @@ if True:
         J = h.shape[-1]
         r = [] 
         permutes = list(itertools.permutations(list(range(J))))
+        dino = h.norm() * hh.norm()
         for p in permutes:
             temp = hh[:,torch.tensor(p)]
-            r.append(abs(stats.pearsonr(h.flatten(), temp.flatten())[0]))
+            nume = (temp.conj().flatten()@h.flatten()).abs()
+            r.append(nume/dino)
         r = sorted(r, reverse=True)
-        return r[0]
+        return r[0].item()
 
-    single_data = False
+    single_data = True
     if single_data:
         ind = 0
         shat, Hhat, vhat, Rb = em_func(x[ind])
@@ -1093,7 +1096,7 @@ if True:
             for ii in range(20):
                 shat, Hhat, vhat, Rb = em_func(x[i], seed=ii)
                 c.append(corr(shat.squeeze().abs(), s_all[i]))
-                cc.append(h_corr(abs(h), Hhat.abs()))
+                cc.append(h_corr(h, Hhat))
             res.append(c)
             res2.append(cc)
             print(f'finished {i} samples')
@@ -1105,6 +1108,7 @@ if True:
     import time
     t = time.time()
     d, s, h = torch.load('../data/nem_ss/test500M3FT100_xsh.pt')
+    h = torch.tensor(h)
     ratio = d.abs().amax(dim=(1,2,3))/3
     x_all = (d/ratio[:,None,None,None]).permute(0,2,3,1)
     s_all = s.abs().permute(0,2,3,1) 
@@ -1126,11 +1130,13 @@ if True:
         J = h.shape[-1]
         r = [] 
         permutes = list(itertools.permutations(list(range(J))))
+        dino = h.norm() * hh.norm()
         for p in permutes:
             temp = hh[:,torch.tensor(p)]
-            r.append(abs(stats.pearsonr(h.flatten(), temp.flatten())[0]))
+            nume = (temp.conj().flatten()@h.flatten()).abs()
+            r.append(nume/dino)
         r = sorted(r, reverse=True)
-        return r[0]
+        return r[0].item()
 
     def nem_func(x, J=3, Hscale=1, Rbscale=100, max_iter=151, lamb=0, seed=1, model='', show_plot=False):
         torch.manual_seed(seed) 
@@ -1240,7 +1246,8 @@ if True:
             for ii in range(20):
                 shat, Hhat, vhat, Rb = nem_func(x_all[i],seed=ii,model=location)
                 c.append(corr(shat.squeeze().abs(), s_all[i]))
-                cc.append(h_corr(np.angle(h), Hhat.angle()))
+                # cc.append(h_corr(np.angle(h), Hhat.angle()))
+                cc.append(h_corr(h, Hhat))
             res.append(c)
             res2.append(cc)
             print(f'finished {i} samples')
@@ -1248,7 +1255,7 @@ if True:
         # torch.save([res, res2], 'res_nem_real.pt')
 
 #%% plot real data results
-    res_s, res_h = torch.load('../data/nem_ss/nem_res/res_em_real.pt')
+    res_s, res_h = torch.load('../data/nem_ss/nem_res/res_em_real_newh.pt')
     plt.figure()
     plt.plot(range(1, 101), torch.tensor(res_s).mean(dim=1))
     plt.boxplot(res_s, showfliers=True)        
@@ -1269,7 +1276,7 @@ if True:
     plt.title('EM correlation result for the angles of h')
     plt.show()
 
-    res_s, res_h = torch.load('../data/nem_ss/nem_res/res_nem_real_5401.pt')
+    res_s, res_h = torch.load('../data/nem_ss/nem_res/res_nem_real_5200.pt')
     plt.figure()
     plt.plot(range(1, 101), torch.tensor(res_s).mean(dim=1))
     plt.boxplot(res_s, showfliers=True)        
@@ -1289,6 +1296,5 @@ if True:
     plt.xlabel('Sample index')
     plt.title('NEM correlation result for the angles of h')
     plt.show()
-
 
 #%%
