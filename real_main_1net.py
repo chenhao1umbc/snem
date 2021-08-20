@@ -1,5 +1,5 @@
 #%%
-#@title rid=125300 cold start, cold shared Hhat
+#@title rid=125000 cold start, cold shared Hhat
 from utils import *
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 plt.rcParams['figure.dpi'] = 100
@@ -8,7 +8,7 @@ torch.set_default_dtype(torch.double)
 from unet.unet_model import UNetHalf8to100 as UNetHalf
 torch.manual_seed(1)
 
-rid = 125300 # running id
+rid = 125000 # running id
 fig_loc = '../data/nem_ss/figures/'
 if not(os.path.isdir(fig_loc + f'/rid{rid}/')): 
     print('made a new folder')
@@ -19,11 +19,11 @@ I = 3000 # how many samples
 M, N, F, J = 3, 100, 100, 3
 NF = N*F
 opts = {}
-opts['n_ch'] = 3  
+opts['n_ch'] = 1  
 opts['batch_size'] = 64
 opts['EM_iter'] = 150
 opts['lr'] = 0.001
-opts['n_epochs'] = 1
+opts['n_epochs'] = 51
 opts['d_gamma'] = 8 
 
 d = torch.load('../data/nem_ss/tr3kM3FT100.pt')
@@ -34,7 +34,7 @@ from skimage.transform import resize
 gtr = torch.tensor(resize(xtr[...,0].abs(), [I,opts['d_gamma'],opts['d_gamma']],\
     order=1, preserve_range=True ))
 gtr = gtr/gtr.amax(dim=[1,2])[...,None,None]  #standardization 
-gtr = torch.cat([gtr[:,None] for j in range(J)], dim=1) # shape of 
+gtr = torch.cat([gtr[:,None] for j in range(J)], dim=1)[:,:,None] # shape of [I,J,1,8,8]
 
 loss_iter, loss_tr = [], []
 model = UNetHalf(opts['n_ch'], opts['n_ch']).cuda()
@@ -77,8 +77,8 @@ for epoch in range(opts['n_epochs']):
             Rxshat = (x[..., None] @ shat.transpose(-1,-2).conj()).sum((1,2))/NF # shape of [I, M, J]
 
             "M-step"
-            # Hhat = Rxshat @ Rsshat.inverse() # shape of [I, M, J]
-            Hhat = (Rxshat @ Rsshat.inverse()).mean(0) # shape of [M, J]
+            Hhat = Rxshat @ Rsshat.inverse() # shape of [I, M, J]
+            # Hhat = (Rxshat @ Rsshat.inverse()).mean(0) # shape of [M, J]
             Rb = Rxxhat - Hhat@Rxshat.transpose(-1,-2).conj() - \
                 Rxshat@Hhat.transpose(-1,-2).conj() + Hhat@Rsshat@Hhat.transpose(-1,-2).conj()
             Rb = Rb.diagonal(dim1=-1, dim2=-2).diag_embed()
@@ -86,7 +86,10 @@ for epoch in range(opts['n_epochs']):
 
             # vj = Rsshatnf.diagonal(dim1=-1, dim2=-2)
             # vj.imag = vj.imag - vj.imag
-            out = torch.sigmoid(model(g)).permute(0,2,3,1)
+            outs = []
+            for j in range(J):
+                outs.append(torch.sigmoid(model(g[:,j])))
+            out = torch.cat(outs, dim=1).permute(0,2,3,1)
             vhat.real = threshold(out)
             loss = loss_func(vhat, Rsshatnf.cuda())
             optim_gamma.zero_grad()   
@@ -139,9 +142,13 @@ for epoch in range(opts['n_epochs']):
         model.train()
         for param in model.parameters():
             param.requires_grad_(True)
-        out = torch.sigmoid(model(g)).permute(0,2,3,1)
-        optimizer.zero_grad() 
+
+        outs = []
+        for j in range(J):
+            outs.append(torch.sigmoid(model(g[:,j])))
+        out = torch.cat(outs, dim=1).permute(0,2,3,1)
         vhat.real = threshold(out)
+        optimizer.zero_grad()         
         ll, *_ = log_likelihood(x, vhat, Hhat, Rb)
         loss = -ll
         loss.backward()
