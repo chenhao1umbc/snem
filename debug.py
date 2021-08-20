@@ -1273,7 +1273,7 @@ if True:
     # plt.ylim([0.5, 0.8])
     plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
     plt.xlabel('Sample index')
-    plt.title('EM correlation result for the angles of h')
+    plt.title('EM correlation result for h')
     plt.show()
 
     res_s, res_h = torch.load('../data/nem_ss/nem_res/res_nem_real_5200.pt')
@@ -1294,7 +1294,7 @@ if True:
     # plt.ylim([0.5, 0.8])
     plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
     plt.xlabel('Sample index')
-    plt.title('NEM correlation result for the angles of h')
+    plt.title('NEM correlation result for h')
     plt.show()
 
 #%%
