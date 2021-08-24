@@ -47,9 +47,10 @@ optimizer = optim.RAdam(model.parameters(),
 vtr = torch.randn(N, F, J).abs().to(torch.cdouble).repeat(I, 1, 1, 1)
 Htr = torch.randn(M, J).to(torch.cdouble).repeat(I, 1, 1)
 Rbtr = torch.ones(I, M).diag_embed().to(torch.cdouble)*100
+added_noise = torch.randn(J, 1, opts['d_gamma'], opts['d_gamma']).to(torch.cdouble)*3
+gtr = gtr + added_noise
 
 for epoch in range(opts['n_epochs']):    
-
     for param in model.parameters():
         param.requires_grad_(False)
     model.eval()
