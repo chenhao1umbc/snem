@@ -189,19 +189,31 @@ def em_func(x, J=3, Hscale=1, Rbscale=100, max_iter=201, lamb=0, seed=0, show_pl
 
     return shat, Hhat, vhat, Rb
 
-def awgn(x, snr, seed=0):
+def awgn(xx, snr, seed=0):
     """
-    This function is adding white guassian noise to the given signal
-    :param x: the given signal with shape of [N, T]
+    This function is adding white guassian noise to the given complex signal
+    :param x: the given signal with shape of [N, T, Channel]
     :param snr: a float number
     :return:
     """
-    np.random.seed(seed)
-    Esym = x.norm()**2/ x.numel()
     SNR = 10 ** (snr / 10.0)
-    N0 = (Esym / SNR).item()
-    noise = torch.tensor(np.sqrt(N0) * np.random.normal(0, 1, x.shape), device=x.device)
-    return x+noise.to(x.dtype)
+    x = xx.clone()
+    if len(x.shape) == 2:
+        np.random.seed(seed)
+        Esym = x.norm()**2/ x.numel()
+        N0 = (Esym / SNR).item()
+        noise = torch.tensor(np.sqrt(N0) * np.random.normal(0, 1, x.shape), device=x.device)
+        return x+noise.to(x.dtype)
+    else: #len(x.shape) == 3
+        N, T, J = x.shape
+        for j in range(J):
+            Esym = x[:,:,j].norm()**2/ x[:,:,j].numel()
+            N0 = (Esym / SNR).item()
+            z = np.random.normal(loc=0, scale=np.sqrt(2)/2, size=(N*T, 2)).view(np.complex128)
+            noise = torch.tensor(np.sqrt(N0)*z, device=x.device).reshape(N, T)
+            x[:,:,j] = x[:,:,j] + noise       
+        return  x
+
 
 #%%
 if __name__ == '__main__':

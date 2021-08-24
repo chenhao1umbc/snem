@@ -1071,11 +1071,14 @@ if True:
         J = h.shape[-1]
         r = [] 
         permutes = list(itertools.permutations(list(range(J))))
-        dino = h.norm() * hh.norm()
         for p in permutes:
             temp = hh[:,torch.tensor(p)]
-            nume = (temp.conj().flatten()@h.flatten()).abs()
-            r.append(nume/dino)
+            s = 0
+            for j in range(J):
+                dino = h[:,j].norm() * temp[:, j].norm()
+                nume = (temp[:, j].conj() @ h[:, j]).abs()
+                s = s + nume/dino
+            r.append(s/J)
         r = sorted(r, reverse=True)
         return r[0].item()
 
@@ -1094,7 +1097,7 @@ if True:
         for i in range(100):
             c, cc = [], []
             for ii in range(20):
-                shat, Hhat, vhat, Rb = em_func(x[i], seed=ii)
+                shat, Hhat, vhat, Rb = em_func(awgn(x[i], snr=20), seed=ii)
                 c.append(corr(shat.squeeze().abs(), s_all[i]))
                 cc.append(h_corr(h, Hhat))
             res.append(c)
