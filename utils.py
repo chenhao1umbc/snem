@@ -64,7 +64,6 @@ def log_likelihood(x, vhat, Hhat, Rb, lamb=0):
         (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze() 
     return l.sum().real, Rs, Rxperm
 
-
 def calc_ll_cpx2(x, vhat, Rj, Rb):
     """ Rj shape of [I, J, M, M]
         vhat shape of [I, N, F, J]
@@ -78,7 +77,6 @@ def calc_ll_cpx2(x, vhat, Rj, Rb):
     Rx = (Rcj + Rb).permute(2,0,1,3,4) # shape of [I, N, F, M, M]
     l = -(np.pi*mydet(Rx)).log() - (x[..., None, :].conj()@Rx.inverse()@x[..., None]).squeeze()
     return l.sum().real
-
 
 def mydet(x):
     """calc determinant of tensor for the last 2 dimensions,
@@ -101,12 +99,9 @@ def mydet(x):
         res = res * ll[..., i]**2
     return res
 
-
 def threshold(x, floor=1e-20, ceiling=1e3):
     y = torch.min(torch.max(x, torch.tensor(floor)), torch.tensor(ceiling))
     return y
-
-
 
 def em_func(x, J=3, Hscale=1, Rbscale=100, max_iter=201, lamb=0, seed=0, show_plot=False):
     #  EM algorithm for one complex sample
@@ -194,7 +189,20 @@ def em_func(x, J=3, Hscale=1, Rbscale=100, max_iter=201, lamb=0, seed=0, show_pl
 
     return shat, Hhat, vhat, Rb
 
-
+def awgn(x, snr, cvseed=0, test='train'):
+    """
+    This function is adding white guassian noise to the given signal
+    :param x: the given signal with shape of [N, T]
+    :param snr: a float number
+    :return:
+    """
+    if test == 'train': np.random.seed(cvseed)  # seed is global variable
+    if test == 'cv' : np.random.seed(cvseed)
+    Esym = x.norm()**2/ x.numel()
+    SNR = 10 ** (snr / 10.0)
+    N0 = (Esym / SNR).item()
+    noise = torch.tensor(np.sqrt(N0) * np.random.normal(0, 1, x.shape), device=x.device)
+    return x+noise.to(x.dtype)
 #%%
 if __name__ == '__main__':
     a, b = torch.rand(3,1).double(), torch.rand(3,1).double()
