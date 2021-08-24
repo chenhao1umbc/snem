@@ -189,20 +189,20 @@ def em_func(x, J=3, Hscale=1, Rbscale=100, max_iter=201, lamb=0, seed=0, show_pl
 
     return shat, Hhat, vhat, Rb
 
-def awgn(x, snr, cvseed=0, test='train'):
+def awgn(x, snr, seed=0):
     """
     This function is adding white guassian noise to the given signal
     :param x: the given signal with shape of [N, T]
     :param snr: a float number
     :return:
     """
-    if test == 'train': np.random.seed(cvseed)  # seed is global variable
-    if test == 'cv' : np.random.seed(cvseed)
+    np.random.seed(seed)
     Esym = x.norm()**2/ x.numel()
     SNR = 10 ** (snr / 10.0)
     N0 = (Esym / SNR).item()
     noise = torch.tensor(np.sqrt(N0) * np.random.normal(0, 1, x.shape), device=x.device)
     return x+noise.to(x.dtype)
+
 #%%
 if __name__ == '__main__':
     a, b = torch.rand(3,1).double(), torch.rand(3,1).double()
