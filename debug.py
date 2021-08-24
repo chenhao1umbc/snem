@@ -1130,11 +1130,14 @@ if True:
         J = h.shape[-1]
         r = [] 
         permutes = list(itertools.permutations(list(range(J))))
-        dino = h.norm() * hh.norm()
         for p in permutes:
             temp = hh[:,torch.tensor(p)]
-            nume = (temp.conj().flatten()@h.flatten()).abs()
-            r.append(nume/dino)
+            s = 0
+            for j in range(J):
+                dino = h[:,j].norm() * temp[:, j].norm()
+                nume = (temp[:, j].conj() @ h[:, j]).abs()
+                s = s + nume/dino
+            r.append(s/J)
         r = sorted(r, reverse=True)
         return r[0].item()
 
@@ -1245,14 +1248,14 @@ if True:
             c, cc = [], []
             for ii in range(20):
                 shat, Hhat, vhat, Rb = nem_func(x_all[i],seed=ii,model=location)
-                c.append(corr(shat.squeeze().abs(), s_all[i]))
+                c.append(shat) # c.append(corr(shat.squeeze().abs(), s_all[i]))
                 # cc.append(h_corr(np.angle(h), Hhat.angle()))
-                cc.append(h_corr(h, Hhat))
+                cc.append(Hhat) # cc.append(h_corr(h, Hhat.squeeze()))
             res.append(c)
             res2.append(cc)
             print(f'finished {i} samples')
         print('Time used is ', time.time()-t)
-        # torch.save([res, res2], 'res_nem_real.pt')
+        torch.save([res, res2], 'res_nem_shat_hhat.pt')
 
 #%% plot real data results
     res_s, res_h = torch.load('../data/nem_ss/nem_res/res_em_real_newh.pt')
@@ -1297,4 +1300,50 @@ if True:
     plt.title('NEM correlation result for h')
     plt.show()
 
+#%% process h and Hhat
+    from unet.unet_model import UNetHalf8to100 as UNetHalf
+    from skimage.transform import resize
+    import itertools
+    import time
+    t = time.time()
+    d, s, h = torch.load('../data/nem_ss/test500M3FT100_xsh.pt')
+    h = torch.tensor(h)
+    s_all = s.abs().permute(0,2,3,1) 
+    
+    # Hhat is a list of lists, 100 of 20 of J*J
+    # shat, hhat = torch.load('res_nem_shat_hhat5200.pt')
+    shat, hhat = torch.load('res_shat_hhat.pt')
+
+    def h_corr(h, hh):
+        J = h.shape[-1]
+        r = [] 
+        permutes = list(itertools.permutations(list(range(J))))
+        for p in permutes:
+            temp = hh[:,torch.tensor(p)]
+            s = 0
+            for j in range(J):
+                dino = h[:,j].norm() * temp[:, j].norm()
+                nume = (temp[:, j].conj() @ h[:, j]).abs()
+                s = s + nume/dino
+            r.append(s/J)
+        r = sorted(r, reverse=True)
+        return r[0].item()
+
+    res = []
+    for i in range(100):
+        c = []
+        for ii in range(20):
+            c.append(h_corr(h, hhat[i][ii].squeeze()))
+        res.append(c)
+    print('done')
+
+    plt.figure()
+    plt.plot(range(1, 101), torch.tensor(res).mean(dim=1))
+    plt.boxplot(res, showfliers=True)        
+    plt.legend(['Mean is blue'])
+    # plt.ylim([0.5, 0.8])
+    plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
+    plt.xlabel('Sample index')
+    plt.title('NEM correlation result for h')
+    plt.show()
 #%%
