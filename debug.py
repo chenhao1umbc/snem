@@ -1251,9 +1251,8 @@ if True:
             c, cc = [], []
             for ii in range(20):
                 shat, Hhat, vhat, Rb = nem_func(x_all[i],seed=ii,model=location)
-                c.append(shat) # c.append(corr(shat.squeeze().abs(), s_all[i]))
-                # cc.append(h_corr(np.angle(h), Hhat.angle()))
-                cc.append(Hhat) # cc.append(h_corr(h, Hhat.squeeze()))
+                c.append(corr(shat.squeeze().abs(), s_all[i]))
+                cc.append(h_corr(h, Hhat.squeeze()))
             res.append(c)
             res2.append(cc)
             print(f'finished {i} samples')
@@ -1349,4 +1348,27 @@ if True:
     plt.xlabel('Sample index')
     plt.title('NEM correlation result for h')
     plt.show()
+
+#%% show 20db, 10db, 5db, 0db result
+    # res, _ = torch.load('../data/nem_ss/nem_res/res_nem_sh_snr0.pt') # s,_ NEM
+    # _, res = torch.load('../data/nem_ss/nem_res/res_nem_sh_snr20.pt') # _,h
+    # res, _ = torch.load('../data/nem_ss/nem_res/res_shat_hhat_snr20.pt') # s,_ EM
+    _, res = torch.load('../data/nem_ss/nem_res/res_shat_hhat_snr0.pt') # _,h
+
+    # plt.figure()
+    # plt.plot(range(1, 101), torch.tensor(res).mean(dim=1))
+    # plt.boxplot(res, showfliers=True)        
+    # plt.legend(['Mean is blue'])
+    # plt.ylim([0.5, 1])
+    # plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
+    # plt.xlabel('Sample index')
+    # plt.title('NEM correlation result for h')
+    # plt.show()
+
+    s = 0
+    for i in range(100):
+        for ii in range(20):
+            s = s + res[i][ii]
+    print(s/2000)
+
 #%%
