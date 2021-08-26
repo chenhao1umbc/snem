@@ -1227,16 +1227,17 @@ if True:
         return shat.cpu(), Hhat.cpu(), vhat.cpu().squeeze(), Rb.cpu()
     
     location = f'../data/nem_ss/models/model_rid5200.pt'
-    single_data = False
+    single_data = True
     if single_data:
         ind = 0
-        shat, Hhat, vhat, Rb = nem_func(x_all[ind],seed=1,model=location)
+        shat, Hhat, vhat, Rb = nem_func(awgn(x_all[ind], snr=0),seed=1,model=location)
         for i in range(3):
             plt.figure()
             plt.imshow(shat.squeeze().abs()[...,i]*ratio[ind])
             plt.colorbar()
             # plt.title(f'Estimated sources {i+1}')
             plt.show()
+        print(h_corr(h, Hhat.squeeze()))
         
         for i in range(3):
             plt.figure()

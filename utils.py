@@ -198,8 +198,8 @@ def awgn(xx, snr, seed=0):
     """
     SNR = 10 ** (snr / 10.0)
     x = xx.clone()
-    if len(x.shape) == 2:
-        np.random.seed(seed)
+    np.random.seed(seed)
+    if len(x.shape) == 2:        
         Esym = x.norm()**2/ x.numel()
         N0 = (Esym / SNR).item()
         noise = torch.tensor(np.sqrt(N0) * np.random.normal(0, 1, x.shape), device=x.device)
