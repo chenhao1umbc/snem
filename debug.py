@@ -1351,10 +1351,10 @@ if True:
     plt.show()
 
 #%% show 20db, 10db, 5db, 0db result
-    # res, _ = torch.load('../data/nem_ss/nem_res/res_nem_sh_snr0.pt') # s,_ NEM
-    # _, res = torch.load('../data/nem_ss/nem_res/res_nem_sh_snr20.pt') # _,h
-    # res, _ = torch.load('../data/nem_ss/nem_res/res_shat_hhat_snr20.pt') # s,_ EM
-    _, res = torch.load('../data/nem_ss/nem_res/res_shat_hhat_snr0.pt') # _,h
+    # res, _ = torch.load('../data/nem_ss/nem_res/res_nem_shat_hhat_snr10.pt') # s,_ NEM
+    # _, res = torch.load('../data/nem_ss/nem_res/res_nem_shat_hhat_snr5.pt') # _,h
+    res, _ = torch.load('../data/nem_ss/nem_res/res_shat_hhat_snr20.pt') # s,_ EM
+    # _, res = torch.load('../data/nem_ss/nem_res/res_shat_hhat_snr20.pt') # _,h
 
     # plt.figure()
     # plt.plot(range(1, 101), torch.tensor(res).mean(dim=1))
