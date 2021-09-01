@@ -103,7 +103,7 @@ def threshold(x, floor=1e-20, ceiling=1e3):
     y = torch.min(torch.max(x, torch.tensor(floor)), torch.tensor(ceiling))
     return y
 
-def em_func(x, J=3, Hscale=1, Rbscale=100, max_iter=201, lamb=0, seed=0, show_plot=False):
+def em_func(x, J=3, Hscale=1, Rbscale=100, max_iter=501, lamb=0, seed=0, show_plot=False):
     #  EM algorithm for one complex sample
     def calc_ll_cpx2(x, vhat, Rj, Rb):
         """ Rj shape of [J, M, M]
@@ -176,6 +176,9 @@ def em_func(x, J=3, Hscale=1, Rbscale=100, max_iter=201, lamb=0, seed=0, show_pl
         for j in range(J):
             Rj[j] = Hhat[:, j][..., None] @ Hhat[:, j][..., None].t().conj()
         ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
+        if i > 5 and abs((ll_traj[i] - ll_traj[i-3])/ll_traj[i-3]) <1e-4:
+            print(f'EM early stop at iter {i}')
+            break
 
     if show_plot:
         plt.figure(100)
