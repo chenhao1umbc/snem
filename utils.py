@@ -176,7 +176,7 @@ def em_func(x, J=3, Hscale=1, Rbscale=100, max_iter=501, lamb=0, seed=0, show_pl
         for j in range(J):
             Rj[j] = Hhat[:, j][..., None] @ Hhat[:, j][..., None].t().conj()
         ll_traj.append(calc_ll_cpx2(x, vhat, Rj, Rb).item())
-        if i > 5 and abs((ll_traj[i] - ll_traj[i-3])/ll_traj[i-3]) <1e-4:
+        if i > 30 and abs((ll_traj[i] - ll_traj[i-3])/ll_traj[i-3]) <1e-4:
             print(f'EM early stop at iter {i}')
             break
 
