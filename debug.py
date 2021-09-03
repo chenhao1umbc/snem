@@ -4,7 +4,7 @@ if True gives each cell an indent, so that each cell could be folded in vs code
 #%% load dependency 
 if True:
     from utils import *
-    os.environ["CUDA_VISIBLE_DEVICES"]="0"
+    os.environ["CUDA_VISIBLE_DEVICES"]="1"
     plt.rcParams['figure.dpi'] = 150
     torch.set_printoptions(linewidth=160)
     torch.set_default_dtype(torch.double)
@@ -1260,100 +1260,10 @@ if True:
         print('Time used is ', time.time()-t)
         torch.save([res, res2], 'res_nem_shat_hhat.pt')
 
-#%% plot real data results
-    res_s, res_h = torch.load('../data/nem_ss/nem_res/res_em_real_newh.pt')
-    plt.figure()
-    plt.plot(range(1, 101), torch.tensor(res_s).mean(dim=1))
-    plt.boxplot(res_s, showfliers=True)        
-    plt.legend(['Mean is blue'])
-    plt.ylim([0.4, 1.01])
-    plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
-    plt.xlabel('Sample index')
-    plt.title('EM correlation result for the magnitude of s')
-    plt.show()
-
-    plt.figure()
-    plt.plot(range(1, 101), torch.tensor(res_h).mean(dim=1))
-    plt.boxplot(res_h, showfliers=True)        
-    plt.legend(['Mean is blue'])
-    # plt.ylim([0.5, 0.8])
-    plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
-    plt.xlabel('Sample index')
-    plt.title('EM correlation result for h')
-    plt.show()
-
-    res_s, res_h = torch.load('../data/nem_ss/nem_res/res_nem_real_5200.pt')
-    plt.figure()
-    plt.plot(range(1, 101), torch.tensor(res_s).mean(dim=1))
-    plt.boxplot(res_s, showfliers=True)        
-    plt.legend(['Mean is blue'])
-    # plt.ylim([0.99, 1.01])
-    plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
-    plt.xlabel('Sample index')
-    plt.title('NEM correlation result for the magnitude of s')
-    plt.show()
-
-    plt.figure()
-    plt.plot(range(1, 101), torch.tensor(res_h).mean(dim=1))
-    plt.boxplot(res_h, showfliers=True)        
-    plt.legend(['Mean is blue'])
-    # plt.ylim([0.5, 0.8])
-    plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
-    plt.xlabel('Sample index')
-    plt.title('NEM correlation result for h')
-    plt.show()
-
-#%% process h and Hhat
-    from unet.unet_model import UNetHalf8to100 as UNetHalf
-    from skimage.transform import resize
-    import itertools
-    import time
-    t = time.time()
-    d, s, h = torch.load('../data/nem_ss/test500M3FT100_xsh.pt')
-    h = torch.tensor(h)
-    s_all = s.abs().permute(0,2,3,1) 
-    
-    # Hhat is a list of lists, 100 of 20 of J*J
-    # shat, hhat = torch.load('res_nem_shat_hhat5200.pt')
-    shat, hhat = torch.load('res_shat_hhat.pt')
-
-    def h_corr(h, hh):
-        J = h.shape[-1]
-        r = [] 
-        permutes = list(itertools.permutations(list(range(J))))
-        for p in permutes:
-            temp = hh[:,torch.tensor(p)]
-            s = 0
-            for j in range(J):
-                dino = h[:,j].norm() * temp[:, j].norm()
-                nume = (temp[:, j].conj() @ h[:, j]).abs()
-                s = s + nume/dino
-            r.append(s/J)
-        r = sorted(r, reverse=True)
-        return r[0].item()
-
-    res = []
-    for i in range(100):
-        c = []
-        for ii in range(20):
-            c.append(h_corr(h, hhat[i][ii].squeeze()))
-        res.append(c)
-    print('done')
-
-    plt.figure()
-    plt.plot(range(1, 101), torch.tensor(res).mean(dim=1))
-    plt.boxplot(res, showfliers=True)        
-    plt.legend(['Mean is blue'])
-    # plt.ylim([0.5, 0.8])
-    plt.xticks([1, 20, 40, 60, 80, 100], [1, 20, 40, 60, 80, 100])
-    plt.xlabel('Sample index')
-    plt.title('NEM correlation result for h')
-    plt.show()
-
 #%% show 20db, 10db, 5db, 0db result
-    # res, _ = torch.load('../data/nem_ss/nem_res/res_nem_shat_hhat_snr10.pt') # s,_ NEM
+    # res, _ = torch.load('../data/nem_ss/nem_res/res_nem_shat_hhat_snr5.pt') # s,h
     # _, res = torch.load('../data/nem_ss/nem_res/res_nem_shat_hhat_snr5.pt') # _,h
-    res, _ = torch.load('../data/nem_ss/nem_res/res_shat_hhat_snr20.pt') # s,_ EM
+    # res, _ = torch.load('../data/nem_ss/nem_res/res_shat_hhat_snrinf.pt') # s,_ EM
     # _, res = torch.load('../data/nem_ss/nem_res/res_shat_hhat_snr20.pt') # _,h
 
     # plt.figure()
@@ -1366,10 +1276,31 @@ if True:
     # plt.title('NEM correlation result for h')
     # plt.show()
 
-    s = 0
-    for i in range(100):
-        for ii in range(20):
-            s = s + res[i][ii]
-    print(s/2000)
+    ss = []
+    for i in [0, 5, 10, 20, 25, 30, 40, 'inf']:
+        _, res = torch.load(f'../data/nem_ss/nem_res/res_nem_shat_hhatsnr_{i}.pt') # s, h NEM
+        s = 0
+        for i in range(100):
+            for ii in range(20):
+                s = s + res[i][ii]
+        print(s/2000)
+        ss.append(s/2000)
+    plt.plot([0, 5, 10, 20, 25, 30, 40, 'inf'], ss, '-x')
 
+    ss = []
+    for i in [0, 5, 10, 20, 25, 30, 40, 'inf']:
+        _, res = torch.load(f'../data/nem_ss/nem_res/res_shat_hhat_snr{i}.pt') # s, h NEM
+        s = 0
+        for i in range(100):
+            for ii in range(20):
+                s = s + res[i][ii]
+        print(s/2000)
+        ss.append(s/2000)
+    plt.plot([0, 5, 10, 20, 25, 30, 40, 'inf'], ss, '-o')
+    plt.ylabel('Averaged correlation result')
+    plt.xlabel('SNR')
+    plt.legend(['NEM', 'EM'])
+    plt.title('Correlation result for h')
+
+    
 #%%
