@@ -1,2 +1,2 @@
 # nem_ss
-Nerual EM for source separation
+This is an obsolete repo, the new repo is located at https://github.com/sjkim-umbc/hao.git
