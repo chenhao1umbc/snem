@@ -8,3 +8,4 @@ SUBMISSION*
 venv/
 .ipynb_checkpoints/
 .vscode
+.log
